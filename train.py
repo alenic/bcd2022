@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from src import *
 
-config_file = "config/deafult.yaml"
+config_file = "config/default.yaml"
 
 root = os.path.join(os.environ["DATASET_ROOT"], "Breast-Cancer-Detection-2022")
 root_images = os.path.join(os.environ["DATASET_ROOT"], "Breast-Cancer-Detection-2022", "train_images_processed_512")
