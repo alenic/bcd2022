@@ -21,6 +21,7 @@ def seed_all(random_state):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
+
 def get_config(config_file, output_folder="outputs"):
     with open(config_file, "r") as fp:
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
@@ -43,9 +44,61 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
         plt.title(str(label))
     plt.show()
 
+
+class CVEval:
+    def __init__(self, cfg, model, val_dataset, metric, device="cuda:0"):
+        self.cfg = cfg
+
+        val_data_loader = torch.utils.data.DataLoader(
+            val_dataset, 
+            batch_size=cfg.test_batch_size,
+            num_workers=cfg.num_workers,
+            shuffle=False
+        )
+        model.to(device)
+
+        self.cfg = cfg
+        self.val_data_loader = val_data_loader
+        
+        self.model = model
+        self.device = device
+        self.metric = metric
+
+    def eval(self, device="cuda:0", tta=False):
+        self.model.eval()
+        
+        y_true = []
+        y_pred = []
+        y_prob_list = []
+        
+        for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
+            image = image.to(device)
+            with torch.no_grad():
+                output = self.model(image)
+                if tta:
+                    output_tta = self.model(image.flip(-1))
+
+                y_true += list(label.cpu().numpy())
+                
+                y_prob = torch.softmax(output,1).cpu().numpy()
+                
+                if tta:
+                    y_prob += torch.softmax(output_tta,1).cpu().numpy()
+                    y_prob /= 2.0
+                
+                y_pred += list(np.argmax(y_prob, 1))
+                y_prob_list += list(y_prob)
+
+
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        y_prob = np.vstack(y_prob_list)
+        return y_pred, y_true, y_prob
+
+
 class CVTrainer:
     def __init__(self,
-                config_file,
+                cfg,
                 model,
                 train_dataset,
                 val_dataset,
@@ -59,7 +112,6 @@ class CVTrainer:
                 save_pth=True,
                 ):
         # Get config
-        cfg, output_folder = get_config(config_file, output_folder)
         self.cfg = cfg
         self.output_folder = output_folder
 
@@ -158,7 +210,7 @@ class CVTrainer:
             
             print(f"Epoch {epoch} Time: {time.time()-t_epoch}")
             
-            if epoch == 0:
+            if epoch == 1:
                 os.makedirs(self.output_folder, exist_ok=True)
                 with open(os.path.join(self.output_folder, "config.yaml"), "w") as fp:
                     yaml.dump(dict(self.cfg), fp)
@@ -204,23 +256,3 @@ class CVTrainer:
                 scheduler.step()
 
 
-    def eval(self, device="cuda:0"):
-        self.model.eval()
-        
-        y_true = []
-        y_pred = []
-        y_prob = []
-        
-        for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
-            image = image.to(device)
-            with torch.no_grad():
-                output = self.model(image)
-                y_true += list(label.cpu().numpy())
-                y_pred += list(torch.argmax(output,1).cpu().numpy())
-                y_prob += list(torch.softmax(output,1).cpu().numpy())
-
-
-        y_true = np.vstack(y_true)
-        y_pred = np.vstack(y_pred)
-        y_prob = np.vstack(y_prob)
-        return y_pred, y_true, y_prob
