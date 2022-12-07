@@ -5,7 +5,7 @@ def pf1(y_true, y_pred, y_prob):
     name = "pf1"
     beta=1
     y_true = y_true.flatten()
-    y_prob = y_prob[:,1].flatten()
+    y_prob = y_prob.flatten()
 
     y_true_count = 0
     ctp = 0

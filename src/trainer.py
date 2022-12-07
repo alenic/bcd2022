@@ -22,17 +22,20 @@ def seed_all(random_state):
     torch.backends.cudnn.benchmark = True
 
 
+def get_output_folder(cfg, root="outputs"):
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    model_name = cfg.model_name.replace("/","_").replace("@","_")
+    folder_out = f"{date}_{model_name}"
+    folder_out = os.path.join(root, folder_out)
+    return folder_out
+
 def get_config(config_file, output_folder="outputs"):
     with open(config_file, "r") as fp:
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
 
     cfg = EasyDict(cfg)
-    date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    model_name = cfg.model_name.replace("/","_").replace("@","_")
-    folder_out = f"{date}_{model_name}"
-    folder_out = os.path.join(output_folder, folder_out)
+    return cfg
 
-    return cfg, folder_out
 
 def show_batch(image_tensor, label=None, mean=None, std=None):
     img = torch.clone(image_tensor)
@@ -55,7 +58,9 @@ class CVEval:
             num_workers=cfg.num_workers,
             shuffle=False
         )
-        model.to(device)
+
+        if next(model.parameters()).device != device:
+            model.to(device)
 
         self.cfg = cfg
         self.val_data_loader = val_data_loader
@@ -67,8 +72,8 @@ class CVEval:
     def eval(self, device="cuda:0", tta=False):
         self.model.eval()
         
-        y_true = []
-        y_pred = []
+        y_true_list = []
+        y_pred_list = []
         y_prob_list = []
         
         for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
@@ -78,21 +83,20 @@ class CVEval:
                 if tta:
                     output_tta = self.model(image.flip(-1))
 
-                y_true += list(label.cpu().numpy())
-                
-                y_prob = torch.softmax(output,1).cpu().numpy()
+                y_true_list += list(label.cpu().numpy())
+                y_prob = torch.sigmoid(output).cpu().numpy().flatten()
                 
                 if tta:
-                    y_prob += torch.softmax(output_tta,1).cpu().numpy()
+                    y_prob += torch.sigmoid(output_tta).cpu().numpy().flatten()
                     y_prob /= 2.0
                 
-                y_pred += list(np.argmax(y_prob, 1))
+                y_pred_list += list(y_prob > 0.5)
                 y_prob_list += list(y_prob)
 
 
-        y_true = np.array(y_true)
-        y_pred = np.array(y_pred)
-        y_prob = np.vstack(y_prob_list)
+        y_true = np.array(y_true_list)
+        y_pred = np.array(y_pred_list)
+        y_prob = np.array(y_prob_list)
         return y_pred, y_true, y_prob
 
 
@@ -113,7 +117,7 @@ class CVTrainer:
                 ):
         # Get config
         self.cfg = cfg
-        self.output_folder = output_folder
+        self.output_folder = get_output_folder(cfg, output_folder)
 
         if cfg.imbalanced:
             from .imbalanced import ImbalancedDatasetSampler
@@ -133,7 +137,7 @@ class CVTrainer:
                 num_workers=cfg.num_workers,
                 shuffle=True
             )
-
+            
         val_data_loader = torch.utils.data.DataLoader(
             val_dataset, 
             batch_size=cfg.test_batch_size,
@@ -141,7 +145,10 @@ class CVTrainer:
             shuffle=False
         )
 
-        model.to(device)
+        self.evaluator = CVEval(cfg, model, val_dataset, metric, device)
+
+        if next(model.parameters()).device != device:
+            model.to(device)
 
         n_iter_per_epoch = len(train_data_loader)
         total_iter = n_iter_per_epoch * cfg.n_epochs
@@ -192,7 +199,7 @@ class CVTrainer:
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
             self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion,  device=self.device)
-            y_pred, y_true, y_prob = self.eval(device=self.device)
+            y_pred, y_true, y_prob = self.evaluator.eval()
 
             if isinstance(self.metric, list):
                 score_list = []
