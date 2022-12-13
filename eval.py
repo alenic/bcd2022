@@ -5,40 +5,42 @@ from src import *
 import glob
 import pandas as pd
 
-model_path = "outputs/2022-12-06_20-51-35_efficientnet_b0"
+fold = 0
+model_ckpt = "outputs/2022-12-08_23-32-18_efficientnet_b0/E0008_0.15743440233236153.pth"
+config_file = os.path.join(os.path.dirname(model_ckpt), "config.yaml")
 
-config_file = os.path.join(model_path, "config.yaml")
-root = os.path.join(os.environ["DATASET_ROOT"], "Breast-Cancer-Detection-2022")
-root_images = os.path.join(os.environ["DATASET_ROOT"], "Breast-Cancer-Detection-2022", "train_images_processed_512")
+# ===========================================================
+root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
+root_images = os.path.join(root, "images_512")
 
 if __name__ == "__main__":
-    cfg, _ = get_config(config_file)
-    val_tr = T.Compose([    T.Resize((cfg.test_input_size, cfg.test_input_size)),
-                            T.ToTensor(),
-                            ])
-    
-    pths = glob.glob(os.path.join(model_path,"*.pth"))
-    cfg.model_ckpt = pths[0]
+    cfg = get_config(config_file)
+    df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
 
-    model = factory_model(cfg.model_type, cfg.model_name, num_classes=2, drop_rate=cfg.drop_rate, hidden=cfg.hidden)
-    if cfg.model_ckpt is not None:
-        print(model.load_state_dict(torch.load(cfg.model_ckpt)))
+    val_tr = transform_albumentations(get_val_tr(cfg.test_input_size))
+
+    model = factory_model(cfg.model_type, cfg.model_name, num_classes=1, drop_rate=cfg.drop_rate, hidden=cfg.hidden)
+    print(model.load_state_dict(torch.load(model_ckpt)))
  
-
-    df_val = pd.read_csv(os.path.join(root, "val_split.csv"))
-    df_val = df_val[(df_val["difficult_negative_case"] == False)]
+    df_val = df[df["fold"] == fold]
 
     print(df_val["cancer"].value_counts())
 
     val_dataset = BCDDataset(root_images, df_val, transform=val_tr)
 
     eval = CVEval(cfg,
+                  df_val,
                   model,
-                  val_dataset,
-                  [pf1, f1])
+                  val_dataset)
 
-    y_pred, y_true, y_prob = eval.eval(tta=True)
-    score, metric_name = pf1(y_true, y_pred, y_prob)
-    print(f"Start Val {metric_name} {score}")
-    score, metric_name = f1(y_true, y_pred, y_prob)
-    print(f"Start Val {metric_name} {score}")
+    f1score, pf1_mean, pf1_max, pf1_majority = eval.eval_metrics()
+
+    score = max(pf1_mean, pf1_max, pf1_majority)
+
+    print(f"Val f1score {f1score}")
+
+    print(f"Val pf1_mean {pf1_mean}")
+
+    print(f"Val pf1_max {pf1_max}")
+
+    print(f"Val pf1_majority {pf1_majority}")

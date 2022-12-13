@@ -1,8 +1,7 @@
 from sklearn.metrics import f1_score, accuracy_score
 import numpy as np
 
-def pf1(y_true, y_pred, y_prob):
-    name = "pf1"
+def pf1(y_true, y_prob):
     beta=1
     y_true = y_true.flatten()
     y_prob = y_prob.flatten()
@@ -24,11 +23,10 @@ def pf1(y_true, y_pred, y_prob):
     c_recall = ctp / y_true_count
     if (c_precision > 0 and c_recall > 0):
         result = (1 + beta_squared) * (c_precision * c_recall) / (beta_squared * c_precision + c_recall)
-        return result, name
+        return result
     else:
-        return 0, name
+        return 0
 
 
-def f1(y_true, y_pred, y_prob):
-    name = "f1"
-    return f1_score(y_true.flatten(), y_pred.flatten()), name
+def f1(y_true, y_pred):
+    return f1_score(y_true.flatten(), y_pred.flatten())

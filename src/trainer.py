@@ -10,6 +10,8 @@ import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torchvision.transforms as T
+from .metrics import *
+import pandas as pd
 
 
 def seed_all(random_state):
@@ -41,7 +43,7 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
     img = torch.clone(image_tensor)
     if mean is not None:
         if std is not None:
-            img = T.Normalize([-x for x in mean], [1/s for s in std])
+            img = (img*std + mean)
     plt.imshow(T.ToPILImage()(img))
     if label is not None:
         plt.title(str(label))
@@ -49,8 +51,9 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
 
 
 class CVEval:
-    def __init__(self, cfg, model, val_dataset, metric, device="cuda:0"):
+    def __init__(self, cfg, df_val, model, val_dataset, device="cuda:0"):
         self.cfg = cfg
+        self.df_val = df_val
 
         val_data_loader = torch.utils.data.DataLoader(
             val_dataset, 
@@ -59,15 +62,15 @@ class CVEval:
             shuffle=False
         )
 
-        if next(model.parameters()).device != device:
-            model.to(device)
+        #if next(model.parameters()).device != device:
+        #    print("Eval send to device")
+        #    model.to(device)
 
         self.cfg = cfg
         self.val_data_loader = val_data_loader
         
         self.model = model
         self.device = device
-        self.metric = metric
 
     def eval(self, device="cuda:0", tta=False):
         self.model.eval()
@@ -98,7 +101,29 @@ class CVEval:
         y_pred = np.array(y_pred_list)
         y_prob = np.array(y_prob_list)
         return y_pred, y_true, y_prob
+    
+    def eval_metrics(self, device="cuda:0", tta=False):
+        y_pred, y_true, y_prob = self.eval(device, tta)
+        f1score = f1(y_true, y_pred)
 
+        df = pd.DataFrame()
+        df["pid"] = self.df_val["patient_id"].astype(str) + "_" + self.df_val["laterality"]
+        df["y_pred"] = y_pred
+        df["y_true"] = y_true
+        df["y_prob"] = y_prob
+
+        df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)
+        # pf1 by mean
+        df_pred = df.groupby("pid")["y_pred"].mean()
+        pf1_mean = pf1(df_true.values, df_pred.values)
+        # pf1 by max
+        df_pred = df.groupby("pid")["y_pred"].max()
+        pf1_max = pf1(df_true.values, df_pred.values)
+        # pf1 by majority
+        df_pred = df.groupby("pid")["y_pred"].apply(lambda x: (x>=0.5).sum() >= len(x)*0.5).astype(int)
+        pf1_majority = pf1(df_true.values, df_pred.values)
+
+        return f1score, pf1_mean, pf1_max, pf1_majority
 
 class CVTrainer:
     def __init__(self,
@@ -106,8 +131,8 @@ class CVTrainer:
                 model,
                 train_dataset,
                 val_dataset,
+                df_val,
                 criterion,
-                metric,
                 maximize,
                 show_dataset=False,
                 output_folder="outputs",
@@ -145,7 +170,7 @@ class CVTrainer:
             shuffle=False
         )
 
-        self.evaluator = CVEval(cfg, model, val_dataset, metric, device)
+        self.evaluator = CVEval(cfg, df_val, model, val_dataset, device)
 
         if next(model.parameters()).device != device:
             model.to(device)
@@ -182,10 +207,11 @@ class CVTrainer:
         self.lr_scheduler = lr_scheduler
         self.criterion = criterion
         self.device = device
-        self.metric = metric
         self.maximize = maximize
         self.save_pth = save_pth
         self.show_dataset = show_dataset
+        self.mean = cfg.mean
+        self.std = cfg.std
         
     def is_better(self, score, best_score):
         if self.maximize:
@@ -199,22 +225,18 @@ class CVTrainer:
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
             self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion,  device=self.device)
-            y_pred, y_true, y_prob = self.evaluator.eval()
+            f1score, pf1_mean, pf1_max, pf1_majority = self.evaluator.eval_metrics()
 
-            if isinstance(self.metric, list):
-                score_list = []
-                for m in self.metric:
-                    score, metric_name = m(y_true, y_pred, y_prob)
-                    self.summary.add_scalar(f"Val/{metric_name}", score, epoch)
-                    print(f"Epoch {epoch} - Val {metric_name} {score}")
-                    score_list.append(score)
-                # take the first score list
-                score = score_list[0]
-            else:
-                score, metric_name = self.metric(y_true, y_pred, y_prob)
-                self.summary.add_scalar(f"Val/{metric_name}", score, epoch)
-                print(f"Epoch {epoch} - Val {metric_name} {score}")
-            
+            score = max(pf1_mean, pf1_max, pf1_majority)
+
+            self.summary.add_scalar("Val/f1score", f1score, epoch)
+            print(f"Epoch {epoch} - Val f1score {f1score}")
+            self.summary.add_scalar("Val/pf1_mean", pf1_mean, epoch)
+            print(f"Epoch {epoch} - Val pf1_mean {pf1_mean}")
+            self.summary.add_scalar("Val/pf1_max", pf1_max, epoch)
+            print(f"Epoch {epoch} - Val pf1_max {pf1_max}")
+            self.summary.add_scalar("Val/pf1_majority", pf1_majority, epoch)
+            print(f"Epoch {epoch} - Val pf1_majority {pf1_majority}")
             print(f"Epoch {epoch} Time: {time.time()-t_epoch}")
             
             if epoch == 1:
@@ -242,7 +264,7 @@ class CVTrainer:
         for iter, (image, label) in enumerate(data_loader):
         
             if self.show_dataset:
-                show_batch(image[0], label[0])
+                show_batch(image[0], label[0], mean=self.mean, std=self.std)
             optimizer.zero_grad()
             image = image.to(device)
             label = label.to(device)

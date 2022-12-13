@@ -4,14 +4,36 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 import torchvision.transforms as T
 import cv2
+import torch
+
+
+'''
+class CustomToTensor(A.ImageOnlyTransform):
+    # Input:  ndarray image from 0 to 255
+    def __init__(self, always_apply: bool = False, p: float = 1, mean=None, std=None, max_pixel_value=255):
+        super(CustomToTensor, self).__init__(always_apply, p)
+        self.mean = mean
+        self.std = std
+        self.max_pixel_value = max_pixel_value
+    
+    def apply(self, img, **params):
+        img = img.astype(np.float32) / self.max_pixel_value 
+        if self.mean is not None:
+            if self.std is not None:
+                img = img - self.mean
+                img = img / self.std
+        
+        return torch.from_numpy(np.expand_dims(img, axis=0))
+'''
+
 
 
 def transform_albumentations(tr):
     return lambda x: tr(image=x)["image"]
 
 
-def get_train_tr(input_size, severity=2):
-    tr = [A.Resize(input_size, input_size)]
+def get_train_tr(input_size, severity=2, mean=0, std=1):
+    tr = [A.Resize(input_size, input_size, interpolation=cv2.INTER_LINEAR)]
 
     #rot = [2, 5, 10, 15, 20, 25][severity]
     #tr += [A.ShiftScaleRotate(p=1, rotate_limit=rot, border_mode=cv2.BORDER_CONSTANT)]
@@ -32,13 +54,17 @@ def get_train_tr(input_size, severity=2):
 
 
     # Resize and tensor
-    tr += [A.ToFloat(), ToTensorV2()]
+    #tr += [CustomToTensor(mean=mean, std=std, max_pixel_value=255)]
+    tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
 
     return A.Compose(tr)
 
 # Val
-def get_val_tr(input_size):
-    return A.Compose([A.Resize(input_size, input_size), A.ToFloat(), ToTensorV2()])
+def get_val_tr(input_size, mean=0, std=1):
+    return A.Compose([A.Resize(input_size, input_size, interpolation=cv2.INTER_LINEAR),
+                      A.Normalize(mean=mean, std=std), ToTensorV2()
+                      #CustomToTensor(mean=mean, std=std, max_pixel_value=255)
+                      ])
 
 
 def crop_breast(img: np.array):
@@ -68,7 +94,11 @@ if __name__ == "__main__":
         image_file = os.path.join(root_images, f)
         img = cv2.imread(image_file, 0)
 
-        img_crop = crop_breast(img)
+        try:
+            img_crop = crop_breast(img)
+        except:
+            print("Error in image", image_file)
+        
         tr = transform_albumentations(get_train_tr(severity=2, input_size=512))
         img_crop_t = tr(img_crop)
 

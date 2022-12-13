@@ -1,23 +1,28 @@
 project_name: finetuning
 random_state: 2022
-lr: 1.0e-3
-batch_size: 32
-test_batch_size: 64
+lr: 5.0e-4
+batch_size: 6
+test_batch_size: 6
 num_workers: 8
 n_epochs: 12
 weight_decay: 1.0e-6
 label_smoothing: 0.0
 optimizer: adamw
 lr_scheduler: cosineannealing
-severity: 3
+
 
 imbalanced: true
 
+# ===================== Augmentations ==================000
+severity: 3
+mean: 0.4
+std: 0.28
+
 # =========================== MODEL =====================
 model_type: "timm"
-model_name: "efficientnet_b0"
-input_size: 256
-test_input_size: 256
+model_name: "tf_efficientnetv2_b0"
+input_size: 768
+test_input_size: 768
 model_ckpt: null
 drop_rate: 0.2
 hidden: []
