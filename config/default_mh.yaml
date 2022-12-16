@@ -1,4 +1,4 @@
-project_name: finetuning
+project_name: multihead
 random_state: 2022
 lr: 5.0e-4
 batch_size: 6
@@ -10,20 +10,22 @@ label_smoothing: 0.0
 optimizer: adamw
 lr_scheduler: cosineannealing
 
+multi_cols: ["cancer", "laterality", "view", "invasive", "BIRADS", "implant"]
 
 imbalanced: true
 max_examples: 20000
 
 # ===================== Augmentations ==================000
 severity: 3
-mean: 0.4
-std: 0.28
+mean: 0
+std: 1
 
 # =========================== MODEL =====================
-model_type: "timm"
+model_type: "timm_mh"
 model_name: "tf_efficientnetv2_b0"
-input_size: [768, 768]
-test_input_size: [768, 768]
+hidden: null
+
+input_size: [256, 256]
+test_input_size: [256, 256]
 model_ckpt: null
 drop_rate: 0.2
-hidden: []

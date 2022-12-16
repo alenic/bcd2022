@@ -7,7 +7,7 @@ config_file = "config/default.yaml"
 n_folds = 5
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "images_768")
+root_images = os.path.join(root, "images_1024")
 
 
 if __name__ == "__main__":
@@ -26,9 +26,11 @@ if __name__ == "__main__":
         print("-- Fold selected --")
         
         # Undersampling
-        df_train_neg = df_train[df_train["cancer"] == 0].sample(20000)
+        df_train_neg = df_train[df_train["cancer"] == 0].sample(cfg.max_examples)
         df_train_pos = df_train[df_train["cancer"] == 1]
         df_train = pd.concat([df_train_neg, df_train_pos])
+        df_train.index = np.arange(len(df_train))
+        df_val.index = np.arange(len(df_val))
         print("-- Fold undersampled --")
 
         print(df_train["cancer"].value_counts())

@@ -26,14 +26,39 @@ class CustomToTensor(A.ImageOnlyTransform):
         return torch.from_numpy(np.expand_dims(img, axis=0))
 '''
 
+'''
+class CustomResizePad(A.ImageOnlyTransform):
+    # Input:  ndarray image from 0 to 255
+    def __init__(self, size, always_apply: bool = False, p: float = 1):
+        super(CustomResizePad, self).__init__(always_apply, p)
+        self.size = size
+    
+    def apply(self, img, **params):
+        h, w = img.shape
+        
+        max_wh = max(w,h)
+        p_left = (max_wh - w) // 2
+        p_top = (max_wh - h) // 2
+        p_right = max_wh - (w+p_left)
+        p_bottom = max_wh - (h+p_top)
+        padding = (p_left, p_top, p_right, p_bottom)
+        return T.functional.pad(image, padding, 0, 'constant')
 
+        if self.mean is not None:
+            if self.std is not None:
+                img = img - self.mean
+                img = img / self.std
+        
+        return torch.from_numpy(np.expand_dims(img, axis=0))
+'''
 
 def transform_albumentations(tr):
     return lambda x: tr(image=x)["image"]
 
 
 def get_train_tr(input_size, severity=2, mean=0, std=1):
-    tr = [A.Resize(input_size, input_size, interpolation=cv2.INTER_LINEAR)]
+    tr = [   A.PadIfNeeded(min_height=input_size[1], min_width=input_size[0])]
+    tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
 
     #rot = [2, 5, 10, 15, 20, 25][severity]
     #tr += [A.ShiftScaleRotate(p=1, rotate_limit=rot, border_mode=cv2.BORDER_CONSTANT)]
@@ -49,8 +74,8 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
     
     mh = [2, 4, 6, 8, 10, 12][severity]
     tr += [A.CoarseDropout(p=1, max_holes=mh,
-           min_height=input_size//16, max_height=input_size//15,
-           min_width=input_size//16,  max_width=input_size//15)]
+           min_height=input_size[0]//16, max_height=input_size[0]//15,
+           min_width=input_size[1]//16,  max_width=input_size[1]//15)]
 
 
     # Resize and tensor
@@ -61,9 +86,8 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
 
 # Val
 def get_val_tr(input_size, mean=0, std=1):
-    return A.Compose([A.Resize(input_size, input_size, interpolation=cv2.INTER_LINEAR),
+    return A.Compose([A.Resize(height=input_size[1], width=input_size[0], interpolation=cv2.INTER_LINEAR),
                       A.Normalize(mean=mean, std=std), ToTensorV2()
-                      #CustomToTensor(mean=mean, std=std, max_pixel_value=255)
                       ])
 
 
@@ -87,7 +111,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     root = os.environ["DATASET_ROOT"]
-    root_images = os.path.join(os.environ["DATASET_ROOT"], "bcd2022", "images_512")
+    root_images = os.path.join(os.environ["DATASET_ROOT"], "bcd2022", "images_1024")
     files = os.listdir(root_images)
     
     for f in files:
@@ -99,7 +123,7 @@ if __name__ == "__main__":
         except:
             print("Error in image", image_file)
         
-        tr = transform_albumentations(get_train_tr(severity=2, input_size=512))
+        tr = transform_albumentations(get_train_tr(severity=2, input_size=(256,512)))
         img_crop_t = tr(img_crop)
 
         img_crop = T.ToPILImage()(img_crop_t)
