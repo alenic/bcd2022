@@ -1,16 +1,17 @@
 project_name: multihead
 random_state: 2022
-lr: 5.0e-4
-batch_size: 6
-test_batch_size: 6
+lr: 1.0e-3
+batch_size: 64
+test_batch_size: 64
 num_workers: 8
 n_epochs: 12
 weight_decay: 1.0e-6
 label_smoothing: 0.0
 optimizer: adamw
 lr_scheduler: cosineannealing
+loss_weight: 0.1
 
-multi_cols: ["cancer", "laterality", "view", "invasive", "BIRADS", "implant"]
+multi_cols: ["cancer", "invasive", "implant", "difficult_negative_case", "density"]
 
 imbalanced: true
 max_examples: 20000
@@ -28,4 +29,4 @@ hidden: null
 input_size: [256, 256]
 test_input_size: [256, 256]
 model_ckpt: null
-drop_rate: 0.2
+drop_rate: 0.25

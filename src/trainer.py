@@ -72,7 +72,7 @@ class CVEval:
         self.model = model
         self.device = device
 
-    def eval(self, device="cuda:0", tta=False):
+    def eval(self, tta=False):
         self.model.eval()
         
         y_true_list = []
@@ -80,7 +80,7 @@ class CVEval:
         y_prob_list = []
         
         for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
-            image = image.to(device)
+            image = image.to(self.device)
             with torch.no_grad():
                 output = self.model(image)
                 if tta:

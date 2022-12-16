@@ -57,29 +57,26 @@ def transform_albumentations(tr):
 
 
 def get_train_tr(input_size, severity=2, mean=0, std=1):
-    tr = [   A.PadIfNeeded(min_height=input_size[1], min_width=input_size[0])]
+    rot = [2, 4, 7, 10, 12, 15][severity]
+    tr = [A.ShiftScaleRotate(p=1, rotate_limit=rot)] #border_mode=cv2.BORDER_CONSTANT)]
+
     tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
 
-    #rot = [2, 5, 10, 15, 20, 25][severity]
-    #tr += [A.ShiftScaleRotate(p=1, rotate_limit=rot, border_mode=cv2.BORDER_CONSTANT)]
-    
-    if severity >= 3:
-        tr += [A.Perspective(p=1)]
-    
     tr += [A.HorizontalFlip(p=0.5)]
 
     bl = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25][severity]
     cl = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25][severity]
     tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=0.5)]
     
-    mh = [2, 4, 6, 8, 10, 12][severity]
-    tr += [A.CoarseDropout(p=1, max_holes=mh,
-           min_height=input_size[0]//16, max_height=input_size[0]//15,
-           min_width=input_size[1]//16,  max_width=input_size[1]//15)]
+    mh = [12, 14, 16, 18, 20, 22][severity]
 
+    tr += [A.CoarseDropout(p=1, max_holes=mh,
+           min_height=input_size[1]//32, max_height=input_size[1]//32,
+           min_width=input_size[0]//32,  max_width=input_size[0]//32)]
 
     # Resize and tensor
     #tr += [CustomToTensor(mean=mean, std=std, max_pixel_value=255)]
+
     tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
 
     return A.Compose(tr)
@@ -95,7 +92,7 @@ def crop_breast(img: np.array):
     im_mean = img.mean()*0.5
     img_mask= (img > im_mean).astype(np.uint8)
     img_mask = cv2.UMat(img_mask)
-    img_mask = cv2.UMat.get(cv2.erode(img_mask, kernel=np.ones((8, 8), np.uint8)))
+    #img_mask = cv2.UMat.get(cv2.erode(img_mask, kernel=np.ones((8, 8), np.uint8)))
     
     contours, hierarchy = cv2.findContours(img_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
@@ -111,7 +108,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     root = os.environ["DATASET_ROOT"]
-    root_images = os.path.join(os.environ["DATASET_ROOT"], "bcd2022", "images_1024")
+    root_images = os.path.join(os.environ["DATASET_ROOT"], "bcd2022", "max_min_1024")
     files = os.listdir(root_images)
     
     for f in files:
@@ -123,13 +120,13 @@ if __name__ == "__main__":
         except:
             print("Error in image", image_file)
         
-        tr = transform_albumentations(get_train_tr(severity=2, input_size=(256,512)))
+        tr = transform_albumentations(get_train_tr(severity=3, input_size=(256,256)))
         img_crop_t = tr(img_crop)
-
+        print(img_crop_t.min(), img_crop_t.max())
         img_crop = T.ToPILImage()(img_crop_t)
 
         fig, ax = plt.subplots(1, 2, figsize=(10,5))
-        ax[0].imshow(img)
-        ax[1].imshow(img_crop)
+        ax[0].imshow(img, vmin=0, vmax=255)
+        ax[1].imshow(img_crop, vmin=0, vmax=255)
         plt.show()
 

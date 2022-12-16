@@ -7,7 +7,7 @@ config_file = "config/default_mh.yaml"
 n_folds = 1
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "images_512")
+root_images = os.path.join(root, "max_min_1024")
 
 
 if __name__ == "__main__":
@@ -16,14 +16,12 @@ if __name__ == "__main__":
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
 
     for fold in range(n_folds):
-
-        
         df_train = df[df["fold"] != fold]
         df_val = df[df["fold"] == fold]
         print("-- Fold selected --")
         
         # Undersampling
-        df_train_neg = df_train[df_train["cancer"] == 0].sample(100)
+        df_train_neg = df_train[df_train["cancer"] == 0].sample(cfg.max_examples)
         df_train_pos = df_train[df_train["cancer"] == 1]
         df_train = pd.concat([df_train_neg, df_train_pos])
         print("-- Fold undersampled --")
@@ -56,10 +54,6 @@ if __name__ == "__main__":
                                  df_val,
                                  multi_cols=cfg.multi_cols,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
-
-
-        
-        
 
         trainer = CVMHTrainer(cfg,
                             model,

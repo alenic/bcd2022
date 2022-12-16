@@ -53,8 +53,3 @@ class BCDDataset:
 
 
         return image, torch.tensor(self.label[index], dtype=torch.float32)
-
-
-
-
-

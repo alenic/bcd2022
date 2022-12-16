@@ -46,6 +46,7 @@ class MultiHeadTimm(nn.Module):
         input_size = timm.get_pretrained_cfg_value(model_name, "input_size")
 
         print("hidden: ", hidden)
+        print("heads_num: ", heads_num)
         print("drop_rate: ", drop_rate)
         self.drop_rate = drop_rate
 
@@ -82,7 +83,7 @@ class MultiHeadTimm(nn.Module):
         if self.inference:
             return self.head(x)
         else:
-            logits = [] 
+            logits = []
             for i in range(len(self.head)):
                 logits.append(self.head[i](x))
 
