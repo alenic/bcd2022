@@ -17,7 +17,7 @@ def pil_loader(path):
 
 
 class BCDDataset:
-    def __init__(self, root, df, multi_cols=None, test=False, extension="png", transform=None):
+    def __init__(self, root, df, multi_cols=None, test=False, extension="png", transform=None, return_path=False):
         self.path = [os.path.join(root, f"{p}_{im}.{extension}") for p, im in zip(df["patient_id"].values, df["image_id"].values)]
         if not test:
             self.label = df["cancer"].values
@@ -26,6 +26,7 @@ class BCDDataset:
         self.transform = transform
         
         self.multi_cols = multi_cols
+        self.return_path = return_path
         
 
         if self.multi_cols is not None:
@@ -46,10 +47,17 @@ class BCDDataset:
             image = self.transform(image)
 
         if self.test:
+            if self.return_path:
+                return image, self.path[index]
             return image
         
         if self.multi_cols is not None:
+            if self.return_path:
+                return image, torch.from_numpy(self.df_col.values[index, :]), self.path[index]
+            
             return image, torch.from_numpy(self.df_col.values[index, :])
 
-
+        if self.return_path:
+            return image, torch.tensor(self.label[index], dtype=torch.float32), self.path[index]
+        
         return image, torch.tensor(self.label[index], dtype=torch.float32)

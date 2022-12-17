@@ -2,16 +2,20 @@ import torch
 import torchvision.transforms as T
 import os
 from src import *
-import glob
+from tqdm import tqdm
 import pandas as pd
 
+import fiftyone as fo
+import fiftyone.zoo as foz
+
 fold = 0
-model_ckpt = "outputs/2022-12-08_23-32-18_efficientnet_b0/E0008_0.15743440233236153.pth"
+tta = False
+model_ckpt = "outputs/2022-12-09_16-30-57_tf_efficientnetv2_b0/E0011_0.13076923076923078.pth"
 config_file = os.path.join(os.path.dirname(model_ckpt), "config.yaml")
 
 # ===========================================================
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "images_512")
+root_images = os.path.join(root, "images_768")
 
 if __name__ == "__main__":
     cfg = get_config(config_file)
@@ -33,14 +37,29 @@ if __name__ == "__main__":
                   model,
                   val_dataset)
 
-    f1score, pf1_mean, pf1_max, pf1_majority = eval.eval_metrics()
+    f1score, pf1_mean, pf1_max, pf1_majority, best_thr, y_prob, y_pred, y_true = eval.eval_metrics(tta=tta, return_y=True)
+    print("f1score", f1score)
+    print("pf1_mean", pf1_mean)
+    print("pf1_max", pf1_max)
+    print("pf1_majority", pf1_majority)
 
-    score = max(pf1_mean, pf1_max, pf1_majority)
 
-    print(f"Val f1score {f1score}")
 
-    print(f"Val pf1_mean {pf1_mean}")
+    # Fifty One
+    dataset = fo.Dataset("eval-result", overwrite=True)
+    files = [os.path.join(root_images, f"{p}_{im}.png") for p, im in zip(df_val["patient_id"].values, df_val["image_id"].values)]
 
-    print(f"Val pf1_max {pf1_max}")
+    samples = []
+    for i, f in enumerate(tqdm(files)):
+        sample = fo.Sample(filepath=f)
+        sample["ground_truth"] = fo.Classification(label=str(int(y_true[i])))
+        sample["predicted"] = fo.Classification(label=str(int(y_pred[i])), confidence=y_prob[i])
+        #if y_true[i] != y_pred[i]:
+        #    sample.tags.append("mistake")
+        samples.append(sample)
 
-    print(f"Val pf1_majority {pf1_majority}")
+    dataset.add_samples(samples)
+    dataset.save()
+
+    session = fo.launch_app(dataset, port=5152)
+    session.wait()

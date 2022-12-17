@@ -38,6 +38,18 @@ def get_config(config_file, output_folder="outputs"):
     cfg = EasyDict(cfg)
     return cfg
 
+def optimize_f1_metric(metric_func, y_true, y_prob, N=100, dtype=int):
+    best_score = 0
+    for thr in np.linspace(0, 1, N):
+        y_pred = (y_prob>=thr).astype(dtype)
+        score = metric_func(y_true, y_pred)
+        if score > best_score:
+            best_score = score
+            best_thr = thr
+    
+    return best_score, best_thr
+
+
 
 def show_batch(image_tensor, label=None, mean=None, std=None):
     img = torch.clone(image_tensor)
@@ -51,7 +63,7 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
 
 
 class CVEval:
-    def __init__(self, cfg, df_val, model, val_dataset, device="cuda:0"):
+    def __init__(self, cfg, df_val, model, val_dataset):
         self.cfg = cfg
         self.df_val = df_val
 
@@ -62,23 +74,20 @@ class CVEval:
             shuffle=False
         )
 
-        #if next(model.parameters()).device != device:
-        #    print("Eval send to device")
-        #    model.to(device)
-
         self.cfg = cfg
         self.val_data_loader = val_data_loader
         
         self.model = model
-        self.device = device
+        self.device = cfg.device
 
-    def eval(self, tta=False):
+        model.to(self.device)
+
+    def eval(self, tta=False, optimal_f1=True):
         self.model.eval()
         
         y_true_list = []
-        y_pred_list = []
         y_prob_list = []
-        
+
         for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
             image = image.to(self.device)
             with torch.no_grad():
@@ -93,18 +102,24 @@ class CVEval:
                     y_prob += torch.sigmoid(output_tta).cpu().numpy().flatten()
                     y_prob /= 2.0
                 
-                y_pred_list += list(y_prob > 0.5)
                 y_prob_list += list(y_prob)
 
-
         y_true = np.array(y_true_list)
-        y_pred = np.array(y_pred_list)
         y_prob = np.array(y_prob_list)
-        return y_pred, y_true, y_prob
+
+        return y_true, y_prob
+
     
-    def eval_metrics(self, device="cuda:0", tta=False):
-        y_pred, y_true, y_prob = self.eval(device, tta)
-        f1score = f1(y_true, y_pred)
+    
+    def eval_metrics(self, tta=False, return_y=False, provided_y: tuple = None):
+        if provided_y is None:
+            y_true, y_prob = self.eval(tta)
+        else:
+            y_true, y_prob = provided_y
+
+        f1score, best_thr = optimize_f1_metric(f1, y_true, y_prob)
+        print("f1_score", f1score, "best thr ", best_thr)
+        y_pred = (y_prob>=best_thr).astype(int)
 
         df = pd.DataFrame()
         df["pid"] = self.df_val["patient_id"].astype(str) + "_" + self.df_val["laterality"]
@@ -114,16 +129,19 @@ class CVEval:
 
         df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)
         # pf1 by mean
-        df_pred = df.groupby("pid")["y_pred"].mean()
+        df_pred = df.groupby("pid")["y_prob"].mean()
         pf1_mean = pf1(df_true.values, df_pred.values)
         # pf1 by max
         df_pred = df.groupby("pid")["y_pred"].max()
         pf1_max = pf1(df_true.values, df_pred.values)
         # pf1 by majority
-        df_pred = df.groupby("pid")["y_pred"].apply(lambda x: (x>=0.5).sum() >= len(x)*0.5).astype(int)
+        df_pred = df.groupby("pid")["y_pred"].apply(lambda x: x.sum() >= len(x)*0.5).astype(int)
         pf1_majority = pf1(df_true.values, df_pred.values)
 
-        return f1score, pf1_mean, pf1_max, pf1_majority
+        if return_y:
+            return f1score, pf1_mean, pf1_max, pf1_majority, best_thr, y_prob, y_pred, y_true
+        
+        return f1score, pf1_mean, pf1_max, pf1_majority, best_thr
 
 class CVTrainer:
     def __init__(self,
@@ -137,12 +155,12 @@ class CVTrainer:
                 show_dataset=False,
                 output_folder="outputs",
                 imb_callback=None,
-                device="cuda:0",
                 save_pth=True,
                 ):
         # Get config
         self.cfg = cfg
         self.output_folder = get_output_folder(cfg, output_folder)
+        self.device = self.cfg.device
 
         if cfg.imbalanced:
             from .imbalanced import ImbalancedDatasetSampler
@@ -170,10 +188,10 @@ class CVTrainer:
             shuffle=False
         )
 
-        self.evaluator = CVEval(cfg, df_val, model, val_dataset, device)
+        self.evaluator = CVEval(cfg, df_val, model, val_dataset)
 
-        if next(model.parameters()).device != device:
-            model.to(device)
+        if next(model.parameters()).device != self.device:
+            model.to(self.device)
 
         n_iter_per_epoch = len(train_data_loader)
         total_iter = n_iter_per_epoch * cfg.n_epochs
@@ -206,7 +224,6 @@ class CVTrainer:
         self.opt = opt
         self.lr_scheduler = lr_scheduler
         self.criterion = criterion
-        self.device = device
         self.maximize = maximize
         self.save_pth = save_pth
         self.show_dataset = show_dataset
@@ -225,7 +242,7 @@ class CVTrainer:
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
             self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion,  device=self.device)
-            f1score, pf1_mean, pf1_max, pf1_majority = self.evaluator.eval_metrics()
+            f1score, pf1_mean, pf1_max, pf1_majority, best_thr = self.evaluator.eval_metrics()
 
             score = max(pf1_mean, pf1_max, pf1_majority)
 
@@ -256,7 +273,7 @@ class CVTrainer:
 
 
 
-    def train_epoch(self, data_loader, model, optimizer, scheduler, criterion, device="cuda:0"):
+    def train_epoch(self, data_loader, model, optimizer, scheduler, criterion):
         model.train()
 
         pbar = tqdm(total=len(data_loader))
@@ -266,8 +283,8 @@ class CVTrainer:
             if self.show_dataset:
                 show_batch(image[0], label[0], mean=self.mean, std=self.std)
             optimizer.zero_grad()
-            image = image.to(device)
-            label = label.to(device)
+            image = image.to(self.device)
+            label = label.to(self.device)
             output = model(image).squeeze(-1)
 
             loss = criterion(output, label)

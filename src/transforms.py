@@ -84,7 +84,8 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
 # Val
 def get_val_tr(input_size, mean=0, std=1):
     return A.Compose([A.Resize(height=input_size[1], width=input_size[0], interpolation=cv2.INTER_LINEAR),
-                      A.Normalize(mean=mean, std=std), ToTensorV2()
+                      A.Normalize(mean=mean, std=std),
+                      ToTensorV2()
                       ])
 
 
