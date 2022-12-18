@@ -82,7 +82,7 @@ class CVEval:
 
         model.to(self.device)
 
-    def eval(self, tta=False, optimal_f1=True):
+    def eval(self, tta=False):
         self.model.eval()
         
         y_true_list = []

@@ -14,9 +14,8 @@ from .metrics import *
 import pandas as pd
 from .trainer import *
 
-
 class CVMHEval:
-    def __init__(self, cfg, df_val, model, val_dataset, device="cuda:0"):
+    def __init__(self, cfg, df_val, model, val_dataset):
         self.cfg = cfg
         self.df_val = df_val
 
@@ -27,24 +26,18 @@ class CVMHEval:
             shuffle=False
         )
 
-        #if next(model.parameters()).device != device:
-        #    print("Eval send to device")
-        #    model.to(device)
-
-        self.cfg = cfg
         self.val_data_loader = val_data_loader
         
         self.model = model
-        self.device = device
+        self.device = cfg.device
 
-
+        model.to(self.device)
 
     def eval(self, tta=False):
         self.model.eval()
         multi_cols = self.cfg.multi_cols
 
         y_true_dict = {c: [] for c in multi_cols}
-        y_pred_dict = {c: [] for c in multi_cols}
         y_prob_dict = {c: [] for c in multi_cols}
 
         for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
@@ -60,30 +53,34 @@ class CVMHEval:
                     if tta:
                         y_prob += torch.sigmoid(output_tta[i].squeeze(-1)).cpu().numpy().flatten()
                         y_prob /= 2.0
-                    
-                    y_pred_dict[multi_cols[i]] += list(y_prob > 0.5)
+
                     y_prob_dict[multi_cols[i]] += list(y_prob)
                     y_true_dict[multi_cols[i]] += list(label[:, i].cpu().numpy())
 
         for i in range(len(multi_cols)):
             y_true_dict[multi_cols[i]] = np.array(y_true_dict[multi_cols[i]] )
-            y_pred_dict[multi_cols[i]] = np.array(y_pred_dict[multi_cols[i]] )
             y_prob_dict[multi_cols[i]] = np.array(y_prob_dict[multi_cols[i]] )
         
-        return y_pred_dict, y_true_dict, y_prob_dict
+        return y_true_dict, y_prob_dict
     
     
-    def eval_metrics(self,  tta=False):
-        y_pred, y_true, y_prob = self.eval(tta)
+    def eval_metrics(self,  tta=False, return_y=False, provided_y: tuple = None):
+        if provided_y is None:
+            y_true, y_prob = self.eval(tta)
+        else:
+            y_true, y_prob = provided_y
 
         multi_cols = self.cfg.multi_cols
 
+        best_thr = {}
         f1score = {}
         pf1_mean = {}
         pf1_max = {}
         pf1_majority = {}
+        y_pred = {}
         for c in multi_cols:
-            f1score[c] = f1(y_true[c], y_pred[c])
+            f1score[c], best_thr[c] = optimize_f1_metric(f1, y_true[c], y_prob[c])
+            y_pred[c] = (y_prob[c]>=best_thr[c]).astype(int)
 
             df = pd.DataFrame()
             df["pid"] = self.df_val["patient_id"].astype(str) + "_" + self.df_val["laterality"]
@@ -93,16 +90,19 @@ class CVMHEval:
 
             df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)
             # pf1 by mean
-            df_pred = df.groupby("pid")["y_pred"].mean()
+            df_pred = df.groupby("pid")["y_prob"].mean()
             pf1_mean[c] = pf1(df_true.values, df_pred.values)
             # pf1 by max
             df_pred = df.groupby("pid")["y_pred"].max()
             pf1_max[c] = pf1(df_true.values, df_pred.values)
             # pf1 by majority
-            df_pred = df.groupby("pid")["y_pred"].apply(lambda x: (x>=0.5).sum() >= len(x)*0.5).astype(int)
+            df_pred = df.groupby("pid")["y_pred"].apply(lambda x: x.sum() >= len(x)*0.5).astype(int)
             pf1_majority[c] = pf1(df_true.values, df_pred.values)
 
-        return f1score, pf1_mean, pf1_max, pf1_majority
+        if return_y:
+            return f1score, pf1_mean, pf1_max, pf1_majority, best_thr, y_prob, y_pred, y_true
+
+        return f1score, pf1_mean, pf1_max, pf1_majority, best_thr
 
 class CVMHTrainer:
     def __init__(self,
@@ -149,10 +149,7 @@ class CVMHTrainer:
             shuffle=False
         )
 
-        self.evaluator = CVMHEval(cfg, df_val, model, val_dataset, device)
-
-        if next(model.parameters()).device != device:
-            model.to(device)
+        self.evaluator = CVMHEval(cfg, df_val, model, val_dataset)
 
         n_iter_per_epoch = len(train_data_loader)
         total_iter = n_iter_per_epoch * cfg.n_epochs
@@ -188,6 +185,8 @@ class CVMHTrainer:
         self.show_dataset = show_dataset
         self.mean = cfg.mean
         self.std = cfg.std
+
+        self.model.to(self.device)
         
     def is_better(self, score, best_score):
         if self.maximize:
@@ -200,14 +199,14 @@ class CVMHTrainer:
         best_pth = None
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
-            self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion,  device=self.device)
-            f1score, pf1_mean, pf1_max, pf1_majority = self.evaluator.eval_metrics()
+            self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
+            f1score, pf1_mean, pf1_max, pf1_majority, best_thr = self.evaluator.eval_metrics()
 
             score = max(pf1_mean["cancer"], pf1_max["cancer"], pf1_majority["cancer"])
             
             for c in self.cfg.multi_cols:
                 self.summary.add_scalar(f"Val/{c}/f1score", f1score[c], epoch)
-                print(f"Epoch {epoch} - Val f1score {f1score[c]}")
+                print(f"Epoch {epoch} - Val f1score {f1score[c]}", "best thr:", best_thr[c])
                 self.summary.add_scalar(f"Val/{c}/pf1_mean", pf1_mean[c], epoch)
                 print(f"Epoch {epoch} - Val pf1_mean {pf1_mean[c]}")
                 self.summary.add_scalar(f"Val/{c}/pf1_max", pf1_max[c], epoch)
@@ -236,7 +235,7 @@ class CVMHTrainer:
 
 
 
-    def train_epoch(self, data_loader, model, optimizer, scheduler, criterion, device="cuda:0"):
+    def train_epoch(self, data_loader, model, optimizer, scheduler, criterion):
         model.train()
 
         pbar = tqdm(total=len(data_loader))
@@ -247,15 +246,18 @@ class CVMHTrainer:
                 show_batch(image[0], labels[0][0], mean=self.mean, std=self.std)
             
             optimizer.zero_grad()
-            image = image.to(device)
+
+            image = image.to(self.device)
+            labels = labels.to(self.device)
 
             outputs = model(image)
-
-            labels = labels.to(device)
             
-            loss = criterion[0](outputs[0].squeeze(-1), labels[:,0])
+            loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
             for i in range(1, len(outputs)):
-                loss += self.cfg.loss_weight*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+                if self.model.heads_num[i] == 1:
+                    loss += self.cfg.loss_weight*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
+                else:
+                    loss += self.cfg.loss_weight*criterion[i](outputs[i].squeeze(-1), labels[:,i])
             loss.backward()
 
             optimizer.step()

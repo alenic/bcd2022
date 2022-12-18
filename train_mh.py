@@ -7,7 +7,7 @@ config_file = "config/default_mh.yaml"
 n_folds = 1
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "max_min_1024")
+root_images = os.path.join(root, "images_1024")
 
 
 if __name__ == "__main__":
@@ -21,7 +21,7 @@ if __name__ == "__main__":
         print("-- Fold selected --")
         
         # Undersampling
-        df_train_neg = df_train[df_train["cancer"] == 0].sample(cfg.max_examples)
+        df_train_neg = df_train[df_train["cancer"] == 0] #.sample(cfg.max_examples)
         df_train_pos = df_train[df_train["cancer"] == 1]
         df_train = pd.concat([df_train_neg, df_train_pos])
         print("-- Fold undersampled --")
@@ -37,7 +37,7 @@ if __name__ == "__main__":
             if n == 2:
                 n = 1
             heads_num += [n]
-            criterion += [MyBCEWithLogitsLoss() if n==1 else nn.CrossEntropyLoss()]
+            criterion += [nn.BCEWithLogitsLoss() if n==1 else nn.CrossEntropyLoss()]
 
 
         model = factory_model(cfg.model_type, cfg.model_name, hidden=cfg.hidden, heads_num=heads_num, drop_rate=cfg.drop_rate)

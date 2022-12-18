@@ -49,6 +49,7 @@ class MultiHeadTimm(nn.Module):
         print("heads_num: ", heads_num)
         print("drop_rate: ", drop_rate)
         self.drop_rate = drop_rate
+        self.heads_num = heads_num
 
         with torch.no_grad():
             self.back.eval()

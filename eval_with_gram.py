@@ -55,7 +55,7 @@ if __name__ == "__main__":
         image = image.to(cfg.device)
         with torch.set_grad_enabled(True):
             scores = grad_cam.forward(image)
-            #pred = (torch.sigmoid(scores) >= best_thr).type(torch.long)
+
             grad_cam.backward(label)
             grad_cam_regions = grad_cam.generate(target_layer=target_layer)
 
