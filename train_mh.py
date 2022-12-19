@@ -21,10 +21,11 @@ if __name__ == "__main__":
         print("-- Fold selected --")
         
         # Undersampling
-        df_train_neg = df_train[df_train["cancer"] == 0] #.sample(cfg.max_examples)
-        df_train_pos = df_train[df_train["cancer"] == 1]
-        df_train = pd.concat([df_train_neg, df_train_pos])
-        print("-- Fold undersampled --")
+        if cfg.max_examples is not None:
+            df_train_neg = df_train[df_train["cancer"] == 0] .sample(cfg.max_examples)
+            df_train_pos = df_train[df_train["cancer"] == 1]
+            df_train = pd.concat([df_train_neg, df_train_pos])
+            print("-- Fold undersampled --")
 
         print(df_train["cancer"].value_counts())
         print(df_val["cancer"].value_counts())
