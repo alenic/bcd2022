@@ -1,17 +1,22 @@
 import torch
 import os
 import pandas as pd
+import argparse
 from src import *
 
-config_file = "config/default_mh.yaml"
+
 n_folds = 1
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
 root_images = os.path.join(root, "images_1024")
 
-
 if __name__ == "__main__":
-    cfg = get_config(config_file)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cfg", default="config/default_mh.yaml", type=str)
+    args = parser.parse_args()
+
+    print("Loading ",args.cfg)
+    cfg = get_config(args.cfg)
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
 

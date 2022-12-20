@@ -116,7 +116,6 @@ class CVMHTrainer:
                 show_dataset=False,
                 output_folder="outputs",
                 imb_callback=None,
-                device="cuda:0",
                 save_pth=True,
                 ):
         # Get config
@@ -179,7 +178,7 @@ class CVMHTrainer:
         self.opt = opt
         self.lr_scheduler = lr_scheduler
         self.criterion = criterion
-        self.device = device
+        self.device = cfg.device
         self.maximize = maximize
         self.save_pth = save_pth
         self.show_dataset = show_dataset
