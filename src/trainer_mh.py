@@ -13,7 +13,6 @@ import torchvision.transforms as T
 from .metrics import *
 import pandas as pd
 
-
 def seed_all(random_state):
     random.seed(random_state)
     os.environ['PYTHONHASHSEED'] = str(random_state)
@@ -38,7 +37,7 @@ def get_config(config_file, output_folder="outputs"):
     cfg = EasyDict(cfg)
     return cfg
 
-def optimize_f1_metric(metric_func, y_true, y_prob, N=100, dtype=int):
+def optimize_metric(metric_func, y_true, y_prob, N=100, dtype=int):
     best_score = 0
     for thr in np.linspace(0, 1, N):
         y_pred = (y_prob>=thr).astype(dtype)
@@ -48,7 +47,6 @@ def optimize_f1_metric(metric_func, y_true, y_prob, N=100, dtype=int):
             best_thr = thr
     
     return best_score, best_thr
-
 
 
 def show_batch(image_tensor, label=None, mean=None, std=None):
@@ -111,45 +109,22 @@ class CVMHEval:
         return y_true_dict, y_prob_dict
     
     
-    def eval_metrics(self,  tta=False, return_y=False, provided_y: tuple = None):
-        if provided_y is None:
-            y_true, y_prob = self.eval(tta)
-        else:
-            y_true, y_prob = provided_y
+    def eval_metrics(self, y_true: dict, y_prob: dict):
+        metrics = {m: {} for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]}
+        thresholds = {}
+        for c in self.cfg.multi_cols:
+            metrics["f1score"][c], best_thr = optimize_metric(f1, y_true[c], y_prob[c])
+            thresholds[c] = best_thr
+            y_pred = (y_prob[c] >= best_thr).astype(int)
 
-        multi_cols = self.cfg.multi_cols
+            metrics["pf1_max"][c] = grouped_reduced(y_true, y_pred, self.df_val, reduce="max")
 
-        best_thr = {}
-        f1score = {}
-        pf1_mean = {}
-        pf1_max = {}
-        pf1_majority = {}
-        y_pred = {}
-        for c in multi_cols:
-            f1score[c], best_thr[c] = optimize_f1_metric(f1, y_true[c], y_prob[c])
-            y_pred[c] = (y_prob[c]>=best_thr[c]).astype(int)
+            metrics["pf1_majority"][c] = grouped_reduced(y_true, y_pred, self.df_val, reduce="majority")
 
-            df = pd.DataFrame()
-            df["pid"] = self.df_val["patient_id"].astype(str) + "_" + self.df_val["laterality"]
-            df["y_pred"] = y_pred[c]
-            df["y_true"] = y_true[c]
-            df["y_prob"] = y_prob[c]
+            metrics["pf1_mean"][c] = grouped_mean(y_true, y_prob, self.df_val, thr=best_thr)
 
-            df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)
-            # pf1 by mean
-            df_pred = df.groupby("pid")["y_prob"].mean()
-            pf1_mean[c] = pf1(df_true.values, df_pred.values)
-            # pf1 by max
-            df_pred = df.groupby("pid")["y_pred"].max()
-            pf1_max[c] = pf1(df_true.values, df_pred.values)
-            # pf1 by majority
-            df_pred = df.groupby("pid")["y_pred"].apply(lambda x: x.sum() >= len(x)*0.5).astype(int)
-            pf1_majority[c] = pf1(df_true.values, df_pred.values)
+        return metrics, thresholds
 
-        if return_y:
-            return f1score, pf1_mean, pf1_max, pf1_majority, best_thr, y_prob, y_pred, y_true
-
-        return f1score, pf1_mean, pf1_max, pf1_majority, best_thr
 
 class CVMHTrainer:
     def __init__(self,
@@ -241,43 +216,43 @@ class CVMHTrainer:
     
     def train(self):
         # Train Cycle
-        best_score = -np.inf if self.maximize else np.inf
-        best_pth = None
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
             self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
-            f1score, pf1_mean, pf1_max, pf1_majority, best_thr = self.evaluator.eval_metrics()
+            y_true_dict, y_prob_dict = self.evaluator.eval(tta=self.cfg.tta)
+            metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
-            score = max(pf1_mean["cancer"], pf1_max["cancer"], pf1_majority["cancer"])
-            
             for c in self.cfg.multi_cols:
-                self.summary.add_scalar(f"Val/{c}/f1score", f1score[c], epoch)
-                print(f"Epoch {epoch} - Val f1score {f1score[c]}", "best thr:", best_thr[c])
-                self.summary.add_scalar(f"Val/{c}/pf1_mean", pf1_mean[c], epoch)
-                print(f"Epoch {epoch} - Val pf1_mean {pf1_mean[c]}")
-                self.summary.add_scalar(f"Val/{c}/pf1_max", pf1_max[c], epoch)
-                print(f"Epoch {epoch} - Val pf1_max {pf1_max[c]}")
-                self.summary.add_scalar(f"Val/{c}/pf1_majority", pf1_majority[c], epoch)
-                print(f"Epoch {epoch} - Val pf1_majority {pf1_majority[c]}")
-            
+                for m in metrics:
+                    print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
+                    self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
+                
+                self.summary.add_scalar(f"Val_{c}/best_f1_thr", thresholds[c], epoch)
+                print(f"best_f1score_thr: {thresholds[c]}")
+  
             epoch_time = time.time()-t_epoch
-            self.summary.add_scalar(f"Train/EpochTime", epoch_time, epoch)
+            self.summary.add_scalar(f"Time/EpochTime", epoch_time, epoch)
             print(f"Epoch {epoch} Time: {epoch_time}")
             
             if epoch == 1:
                 os.makedirs(self.output_folder, exist_ok=True)
                 with open(os.path.join(self.output_folder, "config.yaml"), "w") as fp:
                     yaml.dump(dict(self.cfg), fp)
+                
+                best_score = {m: -np.inf if self.maximize else np.inf for m in metrics}
+                best_pth = {m: None for m in metrics}
             
             if self.save_pth:
-                if self.is_better(score, best_score):
-                    pth = os.path.join(self.output_folder, f"E{epoch:04d}_{score}.pth")
-                    if best_pth is not None:
-                        os.remove(best_pth)
-                    
-                    best_pth = pth
-                    best_score = score
-                    torch.save(self.model.state_dict(), pth)
+                for m in metrics:
+                    score = metrics[m]["cancer"]
+                    if self.is_better(score, best_score[m]):
+                        pth = os.path.join(self.output_folder, f"E{epoch:04d}_{m}_thr{thresholds['cancer']:.4f}_{100*score:.4f}.pth")
+                        if best_pth[m] is not None:
+                            os.remove(best_pth[m])
+                        
+                        best_pth[m] = pth
+                        best_score[m] = score
+                        torch.save(self.model.state_dict(), pth)
 
 
 

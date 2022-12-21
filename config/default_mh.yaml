@@ -11,6 +11,7 @@ imb_sampler_num_samples: null
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
+
 in_chans: 1
 n_hidden: null
 
@@ -18,19 +19,22 @@ input_size: [150, 300]
 test_input_size: [192, 384]
 model_ckpt: null
 
-drop_rate_back: 0.45
+drop_rate_back: 0.0
 drop_rate_mh: 0.45
 
 # ===================== Optimization =====================
 
-lr: 3.0e-3
+lr: 3.0e-4
 batch_size: 24
 test_batch_size: 32
 num_workers: 8
 n_epochs: 40
 weight_decay: 1.0e-4
 label_smoothing: 0.0    # 0.0
+
+# sgd, adam, adamw
 optimizer: adamw
+# const, cosineannealing, step
 lr_scheduler: cosineannealing
 loss_weights: [1, 0.5]
 
@@ -40,3 +44,4 @@ multi_cols: ["cancer", "invasive"]
 severity: 5    # 3
 mean: 0.5
 std: 0.5
+tta: False

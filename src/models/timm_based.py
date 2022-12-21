@@ -17,8 +17,10 @@ class TimmBackbone(nn.Module):
 
         print("TimmBackbone hidden: ", n_hidden)
         print("TimmBackbone in_chans: ", in_chans)
-        print("TimmBackbone drop_rate: ", drop_rate_back)
-        self.drop_rate = drop_rate_back
+        
+        if n_hidden is not None:
+            print("TimmBackbone drop_rate: ", drop_rate_back)
+            self.drop_rate = drop_rate_back
 
         with torch.no_grad():
             self.back.eval()

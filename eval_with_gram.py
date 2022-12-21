@@ -79,7 +79,7 @@ if __name__ == "__main__":
     y_prob = np.array(y_prob_list)
 
 
-    f1score, best_thr = optimize_f1_metric(f1, y_true, y_prob)
+    f1score, best_thr = optimize_metric(f1, y_true, y_prob)
     print("f1_score", f1score, "best thr ", best_thr)
     y_pred = (y_prob>=best_thr).astype(int)
 
