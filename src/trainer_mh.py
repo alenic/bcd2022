@@ -117,11 +117,11 @@ class CVMHEval:
             thresholds[c] = best_thr
             y_pred = (y_prob[c] >= best_thr).astype(int)
 
-            metrics["pf1_max"][c] = grouped_reduced(y_true, y_pred, self.df_val, reduce="max")
+            metrics["pf1_max"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="max")
 
-            metrics["pf1_majority"][c] = grouped_reduced(y_true, y_pred, self.df_val, reduce="majority")
+            metrics["pf1_majority"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="majority")
 
-            metrics["pf1_mean"][c] = grouped_mean(y_true, y_prob, self.df_val, thr=best_thr)
+            metrics["pf1_mean"][c] = grouped_mean(y_true[c], y_prob[c], self.df_val, thr=best_thr)
 
         return metrics, thresholds
 
