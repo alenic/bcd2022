@@ -12,7 +12,54 @@ import matplotlib.pyplot as plt
 import torchvision.transforms as T
 from .metrics import *
 import pandas as pd
-from .trainer import *
+
+
+def seed_all(random_state):
+    random.seed(random_state)
+    os.environ['PYTHONHASHSEED'] = str(random_state)
+    np.random.seed(random_state)
+    torch.manual_seed(random_state)
+    torch.cuda.manual_seed(random_state)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+
+
+def get_output_folder(cfg, root="outputs"):
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    model_name = cfg.model_name.replace("/","_").replace("@","_")
+    folder_out = f"{date}_{model_name}"
+    folder_out = os.path.join(root, folder_out)
+    return folder_out
+
+def get_config(config_file, output_folder="outputs"):
+    with open(config_file, "r") as fp:
+        cfg = yaml.load(fp, yaml.loader.SafeLoader)
+
+    cfg = EasyDict(cfg)
+    return cfg
+
+def optimize_f1_metric(metric_func, y_true, y_prob, N=100, dtype=int):
+    best_score = 0
+    for thr in np.linspace(0, 1, N):
+        y_pred = (y_prob>=thr).astype(dtype)
+        score = metric_func(y_true, y_pred)
+        if score > best_score:
+            best_score = score
+            best_thr = thr
+    
+    return best_score, best_thr
+
+
+
+def show_batch(image_tensor, label=None, mean=None, std=None):
+    img = torch.clone(image_tensor)
+    if mean is not None:
+        if std is not None:
+            img = (img*std + mean)
+    plt.imshow(T.ToPILImage()(img))
+    if label is not None:
+        plt.title(str(label))
+    plt.show()
 
 class CVMHEval:
     def __init__(self, cfg, df_val, model, val_dataset):
@@ -122,10 +169,10 @@ class CVMHTrainer:
         self.cfg = cfg
         self.output_folder = get_output_folder(cfg, output_folder)
 
-        if cfg.imbalanced:
+        if cfg.imbalance_sampler:
             from .imbalanced import ImbalancedDatasetSampler
             assert imb_callback is not None
-            sampler = ImbalancedDatasetSampler(train_dataset, callback_get_label=imb_callback)
+            sampler = ImbalancedDatasetSampler(train_dataset, num_samples=cfg.imb_sampler_num_samples, callback_get_label=imb_callback)
             train_data_loader = torch.utils.data.DataLoader(
                 train_dataset, 
                 batch_size=cfg.batch_size,
@@ -251,12 +298,12 @@ class CVMHTrainer:
 
             outputs = model(image)
             
-            loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
+            loss = self.cfg.loss_weights[0]*criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
             for i in range(1, len(outputs)):
                 if self.model.heads_num[i] == 1:
-                    loss += self.cfg.loss_weight*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
+                    loss += self.cfg.loss_weights[i]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
-                    loss += self.cfg.loss_weight*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+                    loss += self.cfg.loss_weights[i]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
             loss.backward()
 
             optimizer.step()

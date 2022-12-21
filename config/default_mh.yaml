@@ -1,32 +1,42 @@
 project_name: multihead
+device: cuda:0
 random_state: 2022
-lr: 1.0e-3
-batch_size: 64
-test_batch_size: 64
+
+# =========================== Dataset ===================
+folds: [0]
+imbalance_sampler: true
+max_negative_examples: null
+imb_sampler_num_samples: null
+
+# =========================== Model =====================
+model_type: "timm"
+model_name: "tf_efficientnetv2_s_in21ft1k"
+in_chans: 1
+n_hidden: null
+
+input_size: [150, 300]
+test_input_size: [192, 384]
+model_ckpt: null
+
+drop_rate_back: 0.45
+drop_rate_mh: 0.45
+
+# ===================== Optimization =====================
+
+lr: 3.0e-3
+batch_size: 24
+test_batch_size: 32
 num_workers: 8
-n_epochs: 12
-weight_decay: 1.0e-6
-label_smoothing: 0.0
+n_epochs: 40
+weight_decay: 1.0e-4
+label_smoothing: 0.0    # 0.0
 optimizer: adamw
 lr_scheduler: cosineannealing
-loss_weight: 0.1
+loss_weights: [1, 0.5]
 
-multi_cols: ["cancer", "invasive", "implant", "difficult_negative_case", "density"]
+multi_cols: ["cancer", "invasive"]
 
-imbalanced: true
-max_examples: 20000
-
-# ===================== Augmentations ==================000
-severity: 3
-mean: 0
-std: 1
-
-# =========================== MODEL =====================
-model_type: "timm_mh"
-model_name: "tf_efficientnetv2_b0"
-hidden: null
-
-input_size: [256, 256]
-test_input_size: [256, 256]
-model_ckpt: null
-drop_rate: 0.25
+# ===================== Augmentations ===================
+severity: 5    # 3
+mean: 0.5
+std: 0.5
