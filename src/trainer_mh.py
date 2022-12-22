@@ -10,8 +10,10 @@ import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torchvision.transforms as T
-from .metrics import *
+from .custom_metrics import *
+import sklearn.metrics as skm
 import pandas as pd
+
 
 def seed_all(random_state):
     random.seed(random_state)
@@ -110,10 +112,12 @@ class CVMHEval:
     
     
     def eval_metrics(self, y_true: dict, y_prob: dict):
-        metrics = {m: {} for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]}
+        metrics = {m: {} for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority", "precision", "recall", "pr_thr"]}
         thresholds = {}
         for c in self.cfg.multi_cols:
             metrics["f1score"][c], best_thr = optimize_metric(f1, y_true[c], y_prob[c])
+            metrics["precision"][c], metrics["recall"][c], metrics["pr_thr"][c] = skm.precision_recall_curve(y_true[c], y_prob[c])
+            
             thresholds[c] = best_thr
             y_pred = (y_prob[c] >= best_thr).astype(int)
 
@@ -223,12 +227,13 @@ class CVMHTrainer:
             metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
             for c in self.cfg.multi_cols:
-                for m in metrics:
+                for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
                     print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
                     self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
                 
                 self.summary.add_scalar(f"Val_{c}/best_f1_thr", thresholds[c], epoch)
                 print(f"best_f1score_thr: {thresholds[c]}")
+                self.summary.add_pr_curve(f"Val_{c}/pr", y_true_dict[c], y_prob_dict[c], epoch)
   
             epoch_time = time.time()-t_epoch
             self.summary.add_scalar(f"Time/EpochTime", epoch_time, epoch)
@@ -243,7 +248,7 @@ class CVMHTrainer:
                 best_pth = {m: None for m in metrics}
             
             if self.save_pth:
-                for m in metrics:
+                for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
                     score = metrics[m]["cancer"]
                     if self.is_better(score, best_score[m]):
                         pth = os.path.join(self.output_folder, f"E{epoch:04d}_{m}_thr{thresholds['cancer']:.4f}_{100*score:.4f}.pth")

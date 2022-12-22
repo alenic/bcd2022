@@ -19,15 +19,17 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
 
     tr += [A.HorizontalFlip(p=0.5)]
 
-    bl = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25][severity]
-    cl = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25][severity]
-    tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=0.5)]
+    bl = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1][severity]
+    cl = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1][severity]
+    tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=1)]
     
     mh = [12, 14, 16, 18, 20, 22][severity]
 
+    '''
     tr += [A.CoarseDropout(p=1, max_holes=mh,
            min_height=input_size[1]//32, max_height=input_size[1]//32,
            min_width=input_size[1]//32,  max_width=input_size[1]//32)]
+    '''
 
     tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
 
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         except:
             print("Error in image", image_file)
         
-        tr = transform_albumentations(get_train_tr(severity=3, input_size=(256,512)))
+        tr = transform_albumentations(get_train_tr(severity=3, input_size=(256, 512)))
         img_crop_t = tr(img_crop)
         print(img_crop_t.min(), img_crop_t.max())
         img_crop = T.ToPILImage()(img_crop_t)

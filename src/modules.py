@@ -4,51 +4,42 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from typing import Callable, Optional
 from torch import Tensor
+from typing import Optional
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 
 class FocalLoss(nn.Module):
-    def __init__(self, gamma=0, alpha=None, size_average=True):
+    def __init__(self, alpha: float, gamma: Optional[float] = 2.0) -> None:
         super(FocalLoss, self).__init__()
-        self.gamma = gamma
         self.alpha = alpha
-        if isinstance(alpha,(float, int, long)): self.alpha = torch.Tensor([alpha,1-alpha])
-        if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
-        self.size_average = size_average
+        self.gamma = gamma
+        self.eps = 1e-6
 
-    def forward(self, input, target):
-        if input.dim()>2:
-            input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
-            input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
-            input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
-        target = target.view(-1,1)
+    def forward(
+            self,
+            input: torch.Tensor,
+            target: torch.Tensor
+            ) -> torch.Tensor:
 
-        logpt = F.log_softmax(input)
-        logpt = logpt.gather(1,target)
-        logpt = logpt.view(-1)
-        pt = Variable(logpt.data.exp())
+        # compute softmax over the classes axis
+        input_soft = F.sigmoid(input)
+        
+        # compute the actual focal loss
+        weight_pos = target*torch.pow(1. - input_soft, self.gamma)
+        focal_pos = -self.alpha * weight_pos * torch.log(input_soft + self.eps)
 
-        if self.alpha is not None:
-            if self.alpha.type()!=input.data.type():
-                self.alpha = self.alpha.type_as(input.data)
-            at = self.alpha.gather(0,target.data.view(-1))
-            logpt = logpt * Variable(at)
+        # compute the actual focal loss
+        weight_neg = (1. - target)*torch.pow(input_soft, self.gamma)
+        focal_neg = -(1. - self.alpha) * weight_neg * torch.log(1. - input_soft + self.eps)
 
-        loss = -1 * (1-pt)**self.gamma * logpt
-        if self.size_average: return loss.mean()
-        else: return loss.sum()
+        loss = focal_pos + focal_neg
+
+        return torch.mean(loss)
 
 
-
-class MyBCEWithLogitsLoss(nn.BCEWithLogitsLoss):
-    def __init__(self, weight: Optional[Tensor] = None, size_average=None, reduce=None, reduction: str = 'mean',
-                 pos_weight: Optional[Tensor] = None) -> None:
-        super(MyBCEWithLogitsLoss, self).__init__(size_average, reduce, reduction)
-        self.register_buffer('weight', weight)
-        self.register_buffer('pos_weight', pos_weight)
-        self.weight: Optional[Tensor]
-        self.pos_weight: Optional[Tensor]
-
-    def forward(self, input: Tensor, target: Tensor) -> Tensor:
-        return F.binary_cross_entropy_with_logits(input, target.type(torch.float32),
-                                                  self.weight,
-                                                  pos_weight=self.pos_weight,
-                                                  reduction=self.reduction)
+if __name__ == "__main__":
+    loss = FocalLoss(alpha=0.8, gamma=2)
+    print(loss(torch.tensor([[1.0]]), torch.tensor([[1.0]])))

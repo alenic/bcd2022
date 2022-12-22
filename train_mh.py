@@ -41,7 +41,13 @@ if __name__ == "__main__":
             if n == 2:
                 n = 1
             heads_num += [n]
-            criterion += [nn.BCEWithLogitsLoss() if n==1 else nn.CrossEntropyLoss()]
+            if col == "cancer":
+                loss = factory_loss(cfg.loss_type, cfg)
+                criterion += [loss if n==1 else nn.CrossEntropyLoss()]
+            else:
+                criterion += [nn.BCEWithLogitsLoss() if n==1 else nn.CrossEntropyLoss()]
+
+        print("Criterion", criterion)
 
 
         backbone = factory_model(cfg.model_type,
@@ -59,11 +65,13 @@ if __name__ == "__main__":
         train_dataset = BCDDataset(root_images,
                                    df_train,
                                    multi_cols=cfg.multi_cols,
+                                   in_chans=cfg.in_chans,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDataset(root_images,
                                  df_val,
                                  multi_cols=cfg.multi_cols,
+                                 in_chans=cfg.in_chans,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
 
         trainer = CVMHTrainer(cfg,

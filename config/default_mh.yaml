@@ -1,10 +1,10 @@
 project_name: multihead
-device: cuda:0
+device: cuda:1
 random_state: 2022
 
 # =========================== Dataset ===================
 folds: [0]
-imbalance_sampler: true
+imbalance_sampler: false
 max_negative_examples: null
 imb_sampler_num_samples: null
 
@@ -12,21 +12,28 @@ imb_sampler_num_samples: null
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
 
-in_chans: 1
+in_chans: 3
 n_hidden: null
 
 input_size: [150, 300]
-test_input_size: [192, 384]
+test_input_size: [196, 384]
 model_ckpt: null
 
 drop_rate_back: 0.0
 drop_rate_mh: 0.45
 
 # ===================== Optimization =====================
+# focal, bce, bce_weighted
+loss_type: "focal"
+# Focal
+focal_loss_alpha: 0.85
+focal_loss_gamma: 2
+# Weightd BCE
+bce_pos_weight: 50
 
 lr: 3.0e-4
-batch_size: 24
-test_batch_size: 32
+batch_size: 64
+test_batch_size: 64
 num_workers: 8
 n_epochs: 40
 weight_decay: 1.0e-4
@@ -36,12 +43,12 @@ label_smoothing: 0.0    # 0.0
 optimizer: adamw
 # const, cosineannealing, step
 lr_scheduler: cosineannealing
-loss_weights: [1, 0.5]
+loss_weights: [1]
 
-multi_cols: ["cancer", "invasive"]
+multi_cols: ["cancer"]
 
 # ===================== Augmentations ===================
 severity: 5    # 3
 mean: 0.5
 std: 0.5
-tta: False
+tta: false
