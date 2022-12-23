@@ -13,7 +13,7 @@ import torchvision.transforms as T
 from .custom_metrics import *
 import sklearn.metrics as skm
 import pandas as pd
-
+from .models_factory import *
 
 def seed_all(random_state):
     random.seed(random_state)
@@ -178,20 +178,10 @@ class CVMHTrainer:
 
         n_iter_per_epoch = len(train_data_loader)
         total_iter = n_iter_per_epoch * cfg.n_epochs
-        
-        # TODO : optimizer factory
-        if cfg.optimizer == "adamw":
-            opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
-        # TODO : lr factory
-        if cfg.lr_scheduler == "cosineannealing":
-            lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=total_iter, eta_min=0.01*cfg.lr)
-        elif cfg.lr_scheduler is None:
-            lr_scheduler = None
-        else:
-            raise ValueError()
+        opt = factory_optimizer(cfg.optimizer, model, cfg)
+        lr_scheduler = factory_lr_scheduler(cfg.lr_scheduler, total_iter, opt, cfg)
 
         self.summary = SummaryWriter(self.output_folder)
-        # TODO dict(cfg) \r
         self.summary.add_text("config", yaml.dump(dict(cfg)))
 
         self.global_iter = 0

@@ -1,11 +1,15 @@
 project_name: multihead
 device: cuda:0
 random_state: 2022
+n_epochs: 40
+batch_size: 32
+test_batch_size: 32
+num_workers: 4
 
 # =========================== Dataset ===================
 folds: [0]
 imbalance_sampler: false
-max_negative_examples: 10000
+max_negative_examples: null
 imb_sampler_num_samples: null
 
 # =========================== Model =====================
@@ -31,24 +35,30 @@ focal_loss_gamma: 2
 # Weightd BCE
 bce_pos_weight: 50
 
-lr: 3.0e-4
-batch_size: 32
-test_batch_size: 32
-num_workers: 8
-n_epochs: 40
-weight_decay: 1.0e-4
-label_smoothing: 0.0    # 0.0
-
+# Optimizer
 # sgd, adam, adamw
 optimizer: adamw
+# sgd
+opt_sgd_momentum: 0.9
+
+lr: 3.0e-4
+weight_decay: 1.0e-4
+
 # const, cosineannealing, step
 lr_scheduler: cosineannealing
-loss_weights: [1]
 
+# lr_cosineannealing
+lr_cosineannealing_eta_mul: 0.1   # from lr to eta_mul*lr
+
+# lr_step
+lr_step_milestones: [10, 20]
+lr_step_gamma: 0.1
+
+# Multi Heads
 multi_cols: ["cancer"]
-
+loss_weights: [1]
 # ===================== Augmentations ===================
-severity: 5    # 3
+severity: 5
 mean: 0.5
 std: 0.5
 tta: false
