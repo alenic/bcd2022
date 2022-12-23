@@ -1,11 +1,11 @@
 project_name: multihead
-device: cuda:1
+device: cuda:0
 random_state: 2022
 
 # =========================== Dataset ===================
 folds: [0]
 imbalance_sampler: false
-max_negative_examples: null
+max_negative_examples: 10000
 imb_sampler_num_samples: null
 
 # =========================== Model =====================
@@ -24,16 +24,16 @@ drop_rate_mh: 0.45
 
 # ===================== Optimization =====================
 # focal, bce, bce_weighted
-loss_type: "focal"
+loss_type: focal
 # Focal
-focal_loss_alpha: 0.85
+focal_loss_alpha: 0.97
 focal_loss_gamma: 2
 # Weightd BCE
 bce_pos_weight: 50
 
 lr: 3.0e-4
-batch_size: 64
-test_batch_size: 64
+batch_size: 32
+test_batch_size: 32
 num_workers: 8
 n_epochs: 40
 weight_decay: 1.0e-4

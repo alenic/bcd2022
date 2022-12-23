@@ -279,7 +279,7 @@ class CVMHTrainer:
             outputs = model(image)
             
             loss = self.cfg.loss_weights[0]*criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
-            for i in range(1, len(outputs)):
+            for i in range(1, len(criterion)):
                 if self.model.heads_num[i] == 1:
                     loss += self.cfg.loss_weights[i]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
