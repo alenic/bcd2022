@@ -44,7 +44,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
 
         # weight for each sample
         weights = [
-            sample_perc[self._get_label(dataset, idx)] / label_to_count[self._get_label(dataset, idx)] for idx in self.indices
+            perc_sample[self._get_label(dataset, idx)] / label_to_count[self._get_label(dataset, idx)] for idx in self.indices
         ]
         self.weights = torch.DoubleTensor(weights)
 
