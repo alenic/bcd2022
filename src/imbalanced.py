@@ -19,7 +19,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
     """
 
     def __init__(
-        self, dataset, indices=None, num_samples=None, callback_get_label=None
+        self, dataset, indices=None, num_samples=None, callback_get_label=None, sample_perc=[1.0, 1.0]
     ):
         super(ImbalancedDatasetSampler, self).__init__(dataset)
         # if indices is not provided,
@@ -44,7 +44,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
 
         # weight for each sample
         weights = [
-            1.0 / label_to_count[self._get_label(dataset, idx)] for idx in self.indices
+            sample_perc[self._get_label(dataset, idx)] / label_to_count[self._get_label(dataset, idx)] for idx in self.indices
         ]
         self.weights = torch.DoubleTensor(weights)
 

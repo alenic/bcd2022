@@ -36,6 +36,7 @@ def get_config(config_file, output_folder="outputs"):
     with open(config_file, "r") as fp:
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
 
+    print(cfg)
     cfg = EasyDict(cfg)
     return cfg
 
@@ -80,9 +81,12 @@ class CVMHEval:
 
         model.to(self.device)
 
-    def eval(self, tta=False):
+    def eval(self, tta=False, criterion=None):
         self.model.eval()
         multi_cols = self.cfg.multi_cols
+
+        if criterion is not None:
+            loss_list = []
 
         y_true_dict = {c: [] for c in multi_cols}
         y_prob_dict = {c: [] for c in multi_cols}
@@ -91,6 +95,10 @@ class CVMHEval:
             image = image.to(self.device)
             with torch.no_grad():
                 output = self.model(image)
+
+                if criterion is not None:
+                    label = label.to(self.device)
+                    loss_list += [criterion[0](output[0].squeeze(-1), label[:,0].type(torch.float32)).item()]
                 if tta:
                     output_tta = self.model(image.flip(-1))
 
@@ -108,6 +116,10 @@ class CVMHEval:
             y_true_dict[multi_cols[i]] = np.array(y_true_dict[multi_cols[i]] )
             y_prob_dict[multi_cols[i]] = np.array(y_prob_dict[multi_cols[i]] )
         
+
+        if criterion is not None:
+            return y_true_dict, y_prob_dict, np.mean(loss_list)
+
         return y_true_dict, y_prob_dict
     
     
@@ -151,7 +163,9 @@ class CVMHTrainer:
         if cfg.imbalance_sampler:
             from .imbalanced import ImbalancedDatasetSampler
             assert imb_callback is not None
-            sampler = ImbalancedDatasetSampler(train_dataset, num_samples=cfg.imb_sampler_num_samples, callback_get_label=imb_callback)
+            sampler = ImbalancedDatasetSampler(train_dataset,
+                                               callback_get_label=imb_callback,
+                                               perc_sample=cfg.perc_sample)
             train_data_loader = torch.utils.data.DataLoader(
                 train_dataset, 
                 batch_size=cfg.batch_size,
@@ -212,8 +226,11 @@ class CVMHTrainer:
         # Train Cycle
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
-            self.train_epoch(data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
-            y_true_dict, y_prob_dict = self.evaluator.eval(tta=self.cfg.tta)
+            self.train_epoch(epoch, data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
+            y_true_dict, y_prob_dict, val_loss = self.evaluator.eval(tta=self.cfg.tta, criterion=self.criterion)
+
+            self.summary.add_scalar(f"Train/ValLossCancer", val_loss, epoch)
+
             metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
             for c in self.cfg.multi_cols:
@@ -251,12 +268,15 @@ class CVMHTrainer:
 
 
 
-    def train_epoch(self, data_loader, model, optimizer, scheduler, criterion):
+    def train_epoch(self, epoch, data_loader, model, optimizer, scheduler, criterion):
         model.train()
-
+        y_train_true = []
+        y_train_prob = []
         pbar = tqdm(total=len(data_loader))
         n_iter = len(data_loader)
         for iter, (image, labels) in enumerate(data_loader):
+
+            y_train_true += list(labels[:,0].cpu().numpy())
 
             if self.show_dataset:
                 show_batch(image[0], labels[0][0], mean=self.mean, std=self.std)
@@ -267,6 +287,8 @@ class CVMHTrainer:
             labels = labels.to(self.device)
 
             outputs = model(image)
+            
+            y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
             
             loss = self.cfg.loss_weights[0]*criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
             for i in range(1, len(criterion)):
@@ -286,5 +308,10 @@ class CVMHTrainer:
             pbar.update()
             if scheduler is not None:
                 scheduler.step()
-
+        
+        y_train_true = np.array(y_train_true)
+        y_train_prob = np.array(y_train_prob)
+        self.summary.add_pr_curve("Train/pr", y_train_true, y_train_prob, epoch)
+        unique, counts = np.unique(y_train_true, return_counts=True)
+        print("Train Pos Neg", unique, counts, counts/sum(counts))
 

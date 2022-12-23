@@ -9,9 +9,8 @@ num_workers: 4
 # =========================== Dataset ===================
 folds: [0]
 imbalance_sampler: false
-max_negative_examples: null
-imb_sampler_num_samples: null
-
+max_negative_examples: 100
+perc_sample: [0.85, 0.15]
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
