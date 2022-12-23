@@ -19,7 +19,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
     """
 
     def __init__(
-        self, dataset, indices=None, num_samples=None, callback_get_label=None, sample_perc=[1.0, 1.0]
+        self, dataset, indices=None, num_samples=None, callback_get_label=None, perc_sample=[1.0, 1.0]
     ):
         super(ImbalancedDatasetSampler, self).__init__(dataset)
         # if indices is not provided,
