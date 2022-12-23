@@ -8,8 +8,8 @@ num_workers: 4
 
 # =========================== Dataset ===================
 folds: [0]
-imbalance_sampler: false
-max_negative_examples: 100
+imbalance_sampler: true
+max_negative_examples: null
 perc_sample: [0.85, 0.15]
 # =========================== Model =====================
 model_type: "timm"
@@ -29,7 +29,7 @@ drop_rate_mh: 0.45
 # focal, bce, bce_weighted
 loss_type: focal
 # Focal
-focal_loss_alpha: 0.97
+focal_loss_alpha: 0.85
 focal_loss_gamma: 2
 # Weightd BCE
 bce_pos_weight: 50
