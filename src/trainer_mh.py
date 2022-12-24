@@ -229,7 +229,7 @@ class CVMHTrainer:
             self.train_epoch(epoch, data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
             y_true_dict, y_prob_dict, val_loss = self.evaluator.eval(tta=self.cfg.tta, criterion=self.criterion)
 
-            self.summary.add_scalar(f"Train/ValLossCancer", val_loss, epoch)
+            self.summary.add_scalar(f"Train/ValLoss{self.cfg.target}", val_loss, epoch)
 
             metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
@@ -256,9 +256,9 @@ class CVMHTrainer:
             
             if self.save_pth:
                 for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
-                    score = metrics[m]["cancer"]
+                    score = metrics[m][self.cfg.target]
                     if self.is_better(score, best_score[m]):
-                        pth = os.path.join(self.output_folder, f"E{epoch:04d}_{m}_thr{thresholds['cancer']:.4f}_{100*score:.4f}.pth")
+                        pth = os.path.join(self.output_folder, f"E{epoch:04d}_{m}_thr{thresholds[self.cfg.target]:.4f}_{100*score:.4f}.pth")
                         if best_pth[m] is not None:
                             os.remove(best_pth[m])
                         

@@ -25,13 +25,13 @@ if __name__ == "__main__":
         
         # Undersampling
         if cfg.max_negative_examples is not None:
-            df_train_neg = df_train[df_train["cancer"] == 0].sample(cfg.max_negative_examples)
-            df_train_pos = df_train[df_train["cancer"] == 1]
+            df_train_neg = df_train[df_train[cfg.target] == 0].sample(cfg.max_negative_examples)
+            df_train_pos = df_train[df_train[cfg.target] == 1]
             df_train = pd.concat([df_train_neg, df_train_pos])
             print("-- Fold undersampled --")
 
-        print(df_train["cancer"].value_counts())
-        print(df_val["cancer"].value_counts())
+        print(cfg.target, df_train[cfg.target].value_counts())
+        print(cfg.target, df_val[cfg.target].value_counts())
 
         heads_num = []
         criterion = []
@@ -41,7 +41,7 @@ if __name__ == "__main__":
             if n == 2:
                 n = 1
             heads_num += [n]
-            if col == "cancer":
+            if col == cfg.target:
                 loss = factory_loss(cfg.loss_type, cfg)
                 criterion += [loss if n==1 else nn.CrossEntropyLoss()]
             else:
