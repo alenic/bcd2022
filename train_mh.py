@@ -65,12 +65,14 @@ if __name__ == "__main__":
         train_dataset = BCDDataset(root_images,
                                    df_train,
                                    multi_cols=cfg.multi_cols,
+                                   target=cfg.target,
                                    in_chans=cfg.in_chans,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDataset(root_images,
                                  df_val,
                                  multi_cols=cfg.multi_cols,
+                                 target=cfg.target,
                                  in_chans=cfg.in_chans,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
 
@@ -83,6 +85,6 @@ if __name__ == "__main__":
                             maximize=True,
                             show_dataset=False,
                             output_folder="outputs",
-                            imb_callback=lambda dataset, idx: dataset.label[idx],
+                            imb_callback=lambda dataset, idx: dataset.target[idx],
                             save_pth=True)
         trainer.train()

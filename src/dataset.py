@@ -17,9 +17,10 @@ def pil_loader(path):
 
 
 class BCDDataset:
-    def __init__(self, root, df, multi_cols, test=False, in_chans=1, extension="png", transform=None, return_path=False):
+    def __init__(self, root, df, multi_cols, target, test=False, in_chans=1, extension="png", transform=None, return_path=False):
         self.path = [os.path.join(root, f"{p}_{im}.{extension}") for p, im in zip(df["patient_id"].values, df["image_id"].values)]
 
+        self.target = df[target].values
         self.test = test
         self.transform = transform
         
