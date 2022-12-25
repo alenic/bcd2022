@@ -1,16 +1,16 @@
 project_name: multihead
 device: cuda:0
 random_state: 2022
-n_epochs: 40
-batch_size: 32
-test_batch_size: 32
-num_workers: 4
+n_epochs: 15
+batch_size: 24
+test_batch_size: 24
+num_workers: 8
 
 # =========================== Dataset ===================
 folds: [0]
-imbalance_sampler: true
+imbalance_sampler: false
 max_negative_examples: null
-perc_sample: [0.85, 0.15]
+perc_sample: [1.0, 1.0]
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
@@ -26,13 +26,43 @@ drop_rate_back: 0.0
 drop_rate_mh: 0.45
 
 # ===================== Optimization =====================
-# focal, bce, bce_weighted
-loss_type: bce_weighted
-# Focal
-focal_loss_alpha: 0.985
-focal_loss_gamma: 2
-# Weightd BCE
-bce_pos_weight: 85
+target: cancer
+
+loss_target:
+  # focal, bce
+  loss_type: "bce"
+  # apply automatic unbalancing reweighting: weight_i=total_num/num(class_i)
+  unbalance: true
+  # automatic weighting is performed using unbalance_perc*weight_i
+  unbalance_perc: 0.5
+
+# If empty or null no aux multi_head
+aux_cols: ['view',
+           'implant',
+           'biopsy',
+           'invasive',
+           'BIRADS',
+           'density',
+           'difficult_negative_case',
+           'age']
+loss_aux:
+  # focal, bce, ce
+  loss_type: [ce, bce, bce, bce, ce, ce, bce, ce]
+  # apply automatic unbalancing reweighting: weight_i=total_num/num(class_i)
+  unbalance: [false,
+              true,
+              true,
+              true,
+              false,
+              false,
+              true,
+              false]
+  # automatic weighting is performed using unbalance_perc*weight_i
+  unbalance_perc: 0.5
+
+# loss = target_loss + sum_i {loss_aux_weights[i]*loss_aux[i]}
+loss_aux_weights: 20
+
 
 # Optimizer
 # sgd, adam, adamw
@@ -53,12 +83,9 @@ lr_cosineannealing_eta_mul: 0.1   # from lr to eta_mul*lr
 lr_step_milestones: [10, 20]
 lr_step_gamma: 0.1
 
-# Multi Heads
-target: cancer
-multi_cols: ["cancer"]
-loss_weights: [1]
+
 # ===================== Augmentations ===================
-severity: 5
+severity: 1
 mean: 0.5
 std: 0.5
 tta: false

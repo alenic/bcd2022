@@ -27,6 +27,7 @@ class FocalLoss(nn.Module):
         
         # compute the actual focal loss
         weight_pos = target*torch.pow(1. - input_soft, self.gamma)
+        #weight_pos = target
         focal_pos = -self.alpha * weight_pos * torch.log(input_soft + self.eps)
 
         # compute the actual focal loss

@@ -29,13 +29,13 @@ def pf1(y_true, y_prob):
         return 0
 
 
-def f1(y_true, y_pred):
-    return f1_score(y_true.flatten(), y_pred.flatten())
+def f1(y_true, y_pred, average="binary"):
+    return f1_score(y_true.flatten(), y_pred.flatten(), average=average)
 
 
 def grouped_mean(y_true, y_prob, df_val, thr):
     df = pd.DataFrame()
-    df["pid"] = df_val["patient_id"].astype(str) + "_" + df_val["laterality"]
+    df["pid"] = df_val["patient_id"].astype(str) + "_" + df_val["laterality"].astype(str)
     df["y_prob"] = y_prob
     df["y_true"] = y_true
     df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)
@@ -46,7 +46,7 @@ def grouped_mean(y_true, y_prob, df_val, thr):
 
 def grouped_reduced(y_true, y_pred, df_val, reduce="max"):
     df = pd.DataFrame()
-    df["pid"] = df_val["patient_id"].astype(str) + "_" + df_val["laterality"]
+    df["pid"] = df_val["patient_id"].astype(str) + "_" + df_val["laterality"].astype(str)
     df["y_pred"] = y_pred
     df["y_true"] = y_true
     df_true = df.groupby("pid")["y_true"].apply(lambda x: x.sum()>0).astype(int)

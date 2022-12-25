@@ -10,13 +10,37 @@ def factory_model(model_type, model_name, *args, **kwargs):
         raise ValueError()
 
 
-def factory_loss(loss_type, cfg):
+def factory_loss(loss_type, unbalance, unbalance_perc, df_col):
+    n_tot = len(df_col)
+    n_val = len(df_col.unique())
+    counts = df_col.value_counts()
+
+    print(counts)
     if loss_type == "focal":
-        return FocalLoss(alpha=cfg.focal_loss_alpha, gamma=cfg.focal_loss_gamma)
+        if unbalance:
+            alpha = 1.0 - counts[1] / n_tot
+            alpha = unbalance_perc*alpha
+        else:
+            alpha = 0.5
+        print(f"Factory Focal loss '{df_col.name}' with alpha={alpha}")
+        return FocalLoss(alpha=alpha, gamma=2)
     elif loss_type == "bce":
-        return nn.BCEWithLogitsLoss()
-    elif loss_type == "bce_weighted":
-        return nn.BCEWithLogitsLoss(pos_weight=torch.tensor(cfg.bce_pos_weight))
+        if unbalance:
+            pos_weight = unbalance_perc*n_tot/counts[1]
+            pos_weight = torch.tensor([pos_weight])
+        else:
+            pos_weight  = None
+        print(f"Factory BCEWithLogitsLoss '{df_col.name}' with pos_weight={pos_weight}")
+        return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    elif loss_type == "ce":
+        if unbalance:
+            weight = [(n_tot/counts[i]) for i in range(n_val)]
+            m_w = max(weight)
+            weight = torch.tensor([w / m_w / unbalance_perc for w in weight])
+        else:
+            weight = None
+        print(f"Factory CrossEntropyLoss '{df_col.name}' with weight={weight}")
+        return nn.CrossEntropyLoss(weight=weight)
     else:
         raise ValueError()
 

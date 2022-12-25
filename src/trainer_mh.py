@@ -35,9 +35,18 @@ def get_output_folder(cfg, root="outputs"):
 def get_config(config_file, output_folder="outputs"):
     with open(config_file, "r") as fp:
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
-
-    print(cfg)
+    
     cfg = EasyDict(cfg)
+
+    if not isinstance(cfg.loss_aux.unbalance, list):
+        cfg.loss_aux.unbalance = [cfg.loss_aux.unbalance]*len(cfg.aux_cols)
+    if not isinstance(cfg.loss_aux.unbalance_perc, list):
+        cfg.loss_aux.unbalance_perc = [cfg.loss_aux.unbalance_perc]*len(cfg.aux_cols)
+    if not isinstance(cfg.loss_aux_weights, list):
+        cfg.loss_aux_weights = [cfg.loss_aux_weights]*len(cfg.aux_cols)
+    
+    
+    print(cfg)
     return cfg
 
 def optimize_metric(metric_func, y_true, y_prob, N=100, dtype=int):
@@ -83,13 +92,15 @@ class CVMHEval:
 
     def eval(self, tta=False, criterion=None):
         self.model.eval()
-        multi_cols = self.cfg.multi_cols
 
         if criterion is not None:
-            loss_list = []
+            loss_target_list = []
 
-        y_true_dict = {c: [] for c in multi_cols}
-        y_prob_dict = {c: [] for c in multi_cols}
+        eval_cols = [self.cfg.target] + self.cfg.aux_cols
+        loss_type = [self.cfg.loss_target.loss_type] + self.cfg.loss_aux.loss_type
+
+        y_true_dict = {c: [] for c in eval_cols}
+        y_prob_dict = {c: [] for c in eval_cols}
 
         for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
             image = image.to(self.device)
@@ -98,27 +109,34 @@ class CVMHEval:
 
                 if criterion is not None:
                     label = label.to(self.device)
-                    loss_list += [criterion[0](output[0].squeeze(-1), label[:,0].type(torch.float32)).item()]
+                    loss_target_list += [criterion[0](output[0].squeeze(-1), label[:,0].type(torch.float32)).item()]
                 if tta:
                     output_tta = self.model(image.flip(-1))
 
-                for i in range(len(multi_cols)):
+            for i in range(len(eval_cols)):
+                if loss_type[i] in ["bce", "focal"]:
                     y_prob = torch.sigmoid(output[i].squeeze(-1)).cpu().numpy().flatten()
                     
                     if tta:
                         y_prob += torch.sigmoid(output_tta[i].squeeze(-1)).cpu().numpy().flatten()
                         y_prob /= 2.0
+                else:
+                    y_prob = torch.softmax(output[i], 1).cpu().numpy()
+                    
+                    if tta:
+                        y_prob += torch.sigmoid(output_tta[i], 1).cpu().numpy()
+                        y_prob /= 2.0
 
-                    y_prob_dict[multi_cols[i]] += list(y_prob)
-                    y_true_dict[multi_cols[i]] += list(label[:, i].cpu().numpy())
+                y_prob_dict[eval_cols[i]] += list(y_prob)
+                y_true_dict[eval_cols[i]] += list(label[:, i].cpu().numpy())
 
-        for i in range(len(multi_cols)):
-            y_true_dict[multi_cols[i]] = np.array(y_true_dict[multi_cols[i]] )
-            y_prob_dict[multi_cols[i]] = np.array(y_prob_dict[multi_cols[i]] )
+        for i in range(len(eval_cols)):
+            y_true_dict[eval_cols[i]] = np.array(y_true_dict[eval_cols[i]] )
+            y_prob_dict[eval_cols[i]] = np.array(y_prob_dict[eval_cols[i]] )
         
 
         if criterion is not None:
-            return y_true_dict, y_prob_dict, np.mean(loss_list)
+            return y_true_dict, y_prob_dict, np.mean(loss_target_list)
 
         return y_true_dict, y_prob_dict
     
@@ -126,18 +144,27 @@ class CVMHEval:
     def eval_metrics(self, y_true: dict, y_prob: dict):
         metrics = {m: {} for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority", "precision", "recall", "pr_thr"]}
         thresholds = {}
-        for c in self.cfg.multi_cols:
-            metrics["f1score"][c], best_thr = optimize_metric(f1, y_true[c], y_prob[c])
-            metrics["precision"][c], metrics["recall"][c], metrics["pr_thr"][c] = skm.precision_recall_curve(y_true[c], y_prob[c])
-            
-            thresholds[c] = best_thr
-            y_pred = (y_prob[c] >= best_thr).astype(int)
+        
+        # Eval target
+        c = self.cfg.target
+        metrics["f1score"][c], best_thr = optimize_metric(f1, y_true[c], y_prob[c])
+        metrics["precision"][c], metrics["recall"][c], metrics["pr_thr"][c] = skm.precision_recall_curve(y_true[c], y_prob[c])
+        
+        thresholds[c] = best_thr
+        y_pred = (y_prob[c] >= best_thr).astype(int)
 
-            metrics["pf1_max"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="max")
+        metrics["pf1_max"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="max")
+        metrics["pf1_majority"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="majority")
+        metrics["pf1_mean"][c] = grouped_mean(y_true[c], y_prob[c], self.df_val, thr=best_thr)
 
-            metrics["pf1_majority"][c] = grouped_reduced(y_true[c], y_pred, self.df_val, reduce="majority")
-
-            metrics["pf1_mean"][c] = grouped_mean(y_true[c], y_prob[c], self.df_val, thr=best_thr)
+        # Eval aux
+        for i, c in enumerate(self.cfg.aux_cols):
+            if self.cfg.loss_aux.loss_type[i] in ["bce", "focal"]:
+                y_pred = (y_prob[c] >= best_thr).astype(int)
+                metrics["f1score"][c] = f1(y_true[c], y_pred)
+            else:
+                y_pred = np.argmax(y_prob[c], 1)
+                metrics["f1score"][c] = f1(y_true[c], y_pred, average="macro")
 
         return metrics, thresholds
 
@@ -188,6 +215,8 @@ class CVMHTrainer:
             shuffle=False
         )
 
+        model.to(cfg.device)
+        criterion = [c.to(cfg.device) for c in criterion]
         self.evaluator = CVMHEval(cfg, df_val, model, val_dataset)
 
         n_iter_per_epoch = len(train_data_loader)
@@ -215,7 +244,6 @@ class CVMHTrainer:
         self.mean = cfg.mean
         self.std = cfg.std
 
-        self.model.to(self.device)
         
     def is_better(self, score, best_score):
         if self.maximize:
@@ -233,14 +261,21 @@ class CVMHTrainer:
 
             metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
-            for c in self.cfg.multi_cols:
-                for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
+            # Add Target metrics to summary
+            c = self.cfg.target
+            for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
+                print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
+                self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
+            
+            self.summary.add_scalar(f"Val_{c}/best_f1_thr", thresholds[c], epoch)
+            print(f"best_f1score_thr: {thresholds[c]}")
+            self.summary.add_pr_curve(f"Val_{c}/pr", y_true_dict[c], y_prob_dict[c], epoch)
+
+            for c in self.cfg.aux_cols:
+                for m in ["f1score"]:
                     print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
                     self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
-                
-                self.summary.add_scalar(f"Val_{c}/best_f1_thr", thresholds[c], epoch)
-                print(f"best_f1score_thr: {thresholds[c]}")
-                self.summary.add_pr_curve(f"Val_{c}/pr", y_true_dict[c], y_prob_dict[c], epoch)
+
   
             epoch_time = time.time()-t_epoch
             self.summary.add_scalar(f"Time/EpochTime", epoch_time, epoch)
@@ -289,13 +324,13 @@ class CVMHTrainer:
             outputs = model(image)
             
             y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
-            
-            loss = self.cfg.loss_weights[0]*criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
+            loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
             for i in range(1, len(criterion)):
+
                 if self.model.heads_num[i] == 1:
-                    loss += self.cfg.loss_weights[i]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
+                    loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
-                    loss += self.cfg.loss_weights[i]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+                    loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
             loss.backward()
 
             optimizer.step()
@@ -311,7 +346,17 @@ class CVMHTrainer:
         
         y_train_true = np.array(y_train_true)
         y_train_prob = np.array(y_train_prob)
+
+        prob_pos = y_train_prob[y_train_true==1]
+        prob_neg = y_train_prob[y_train_true==0]
+        loss_pos = -np.mean(np.log(prob_pos))
+        loss_neg = -np.mean(np.log(1-prob_neg))
+        
+
         self.summary.add_pr_curve("Train/pr", y_train_true, y_train_prob, epoch)
+        self.summary.add_scalar("Train/loss_pos", loss_pos, epoch)
+        self.summary.add_scalar("Train/loss_neg", loss_neg, epoch)
+
         unique, counts = np.unique(y_train_true, return_counts=True)
         print("Train Pos Neg", unique, counts, counts/sum(counts))
 

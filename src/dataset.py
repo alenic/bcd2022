@@ -17,21 +17,19 @@ def pil_loader(path):
 
 
 class BCDDataset:
-    def __init__(self, root, df, multi_cols, target, test=False, in_chans=1, extension="png", transform=None, return_path=False):
+    def __init__(self, root, df, aux_cols, target, test=False, in_chans=1, extension="png", transform=None, return_path=False):
         self.path = [os.path.join(root, f"{p}_{im}.{extension}") for p, im in zip(df["patient_id"].values, df["image_id"].values)]
 
         self.target = df[target].values
         self.test = test
         self.transform = transform
         
-        self.multi_cols = multi_cols
+        self.aux_cols = [target]+aux_cols
         self.return_path = return_path
         self.in_chans = in_chans
         
-        self.df_col = df.loc[:, multi_cols]
-        for col in self.multi_cols:
-            le = LabelEncoder()
-            self.df_col[col] = le.fit_transform(self.df_col[col].values)
+        self.df_col = df.loc[:, self.aux_cols]
+        self.df_col.index = np.arange(len(self.df_col))
     
 
     def __len__(self):
@@ -55,5 +53,5 @@ class BCDDataset:
 
         if self.return_path:
             return image, torch.from_numpy(self.df_col.values[index, :]), self.path[index]
-            
+
         return image, torch.from_numpy(self.df_col.values[index, :])

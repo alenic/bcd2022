@@ -17,6 +17,9 @@ if __name__ == "__main__":
     cfg = get_config(args.cfg)
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
+    df = df_preprocess(df)
+
+    print(df.head())
 
     for fold in cfg.folds:
         df_train = df[df["fold"] != fold]
@@ -32,23 +35,30 @@ if __name__ == "__main__":
 
         print(cfg.target, df_train[cfg.target].value_counts())
         print(cfg.target, df_val[cfg.target].value_counts())
+        print("------------------------------------")
 
-        heads_num = []
-        criterion = []
-        for col in cfg.multi_cols:
-            uniq = df[col].unique()
-            n = len(uniq)
+        # Target
+        heads_num = [1]
+        criterion = [
+            factory_loss(cfg.loss_target.loss_type,
+                        cfg.loss_target.unbalance,
+                        cfg.loss_target.unbalance_perc,
+                        df_train[cfg.target])
+        ]
+        
+        for i, col in enumerate(cfg.aux_cols):
+            # n = number of col values
+            n = len(df[col].unique())
             if n == 2:
                 n = 1
             heads_num += [n]
-            if col == cfg.target:
-                loss = factory_loss(cfg.loss_type, cfg)
-                criterion += [loss if n==1 else nn.CrossEntropyLoss()]
-            else:
-                criterion += [nn.BCEWithLogitsLoss() if n==1 else nn.CrossEntropyLoss()]
 
-        print("Criterion", criterion)
-
+            criterion += [
+                factory_loss(cfg.loss_aux.loss_type[i],
+                            cfg.loss_aux.unbalance[i],
+                            cfg.loss_aux.unbalance_perc[i],
+                            df_train[col])
+            ]
 
         backbone = factory_model(cfg.model_type,
                                  cfg.model_name,
@@ -64,14 +74,14 @@ if __name__ == "__main__":
 
         train_dataset = BCDDataset(root_images,
                                    df_train,
-                                   multi_cols=cfg.multi_cols,
+                                   aux_cols=cfg.aux_cols,
                                    target=cfg.target,
                                    in_chans=cfg.in_chans,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDataset(root_images,
                                  df_val,
-                                 multi_cols=cfg.multi_cols,
+                                 aux_cols=cfg.aux_cols,
                                  target=cfg.target,
                                  in_chans=cfg.in_chans,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
