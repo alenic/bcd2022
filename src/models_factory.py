@@ -50,6 +50,8 @@ def factory_optimizer(opt_type, model, cfg):
     # TODO : optimizer factory
     if opt_type == "adamw":
         return torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    if opt_type == "adam":
+        return torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     elif opt_type == "sgd":
         return torch.optim.SGD(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay, momentum=cfg.opt_sgd_momentum)
     else:
