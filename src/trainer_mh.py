@@ -5,6 +5,7 @@ import torch
 import yaml
 from easydict import EasyDict
 import datetime
+import shutil
 from torch.utils.tensorboard import SummaryWriter
 import time
 from tqdm import tqdm
@@ -37,6 +38,7 @@ def get_config(config_file, output_folder="outputs"):
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
     
     cfg = EasyDict(cfg)
+    cfg.yaml_file = config_file
 
     if not isinstance(cfg.loss_aux.unbalance, list):
         cfg.loss_aux.unbalance = [cfg.loss_aux.unbalance]*len(cfg.aux_cols)
@@ -225,6 +227,9 @@ class CVMHTrainer:
         lr_scheduler = factory_lr_scheduler(cfg.lr_scheduler, total_iter, opt, cfg)
 
         self.summary = SummaryWriter(self.output_folder)
+        # Copy configuration to outputs
+        shutil.copy(self.cfg.yaml_file, os.path.join(self.output_folder, "config.yaml"))
+
         self.summary.add_text("config", yaml.dump(dict(cfg)))
 
         self.global_iter = 0
@@ -283,9 +288,6 @@ class CVMHTrainer:
             
             if epoch == 1:
                 os.makedirs(self.output_folder, exist_ok=True)
-                with open(os.path.join(self.output_folder, "config.yaml"), "w") as fp:
-                    yaml.dump(dict(self.cfg), fp)
-                
                 best_score = {m: -np.inf if self.maximize else np.inf for m in metrics}
                 best_pth = {m: None for m in metrics}
             
