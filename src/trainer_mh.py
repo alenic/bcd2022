@@ -11,10 +11,11 @@ import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torchvision.transforms as T
-from .custom_metrics import *
 import sklearn.metrics as skm
 import pandas as pd
+from .custom_metrics import *
 from .models_factory import *
+from .utils import *
 
 def seed_all(random_state):
     random.seed(random_state)
@@ -187,7 +188,20 @@ class CVMHTrainer:
                 ):
         # Get config
         self.cfg = cfg
-        self.output_folder = get_output_folder(cfg, output_folder)
+        self.output_folder = output_folder
+
+        self.summary = SummaryWriter(self.output_folder)
+        # Copy configuration to outputs
+        shutil.copy(self.cfg.yaml_file, os.path.join(self.output_folder, "config.yaml"))
+        # Save config text to tensorboard
+
+        cfg_dict = dict(self.cfg)
+        cfg_dict = flatten_dict(cfg_dict)
+        dict_str = ""
+        for k in cfg_dict:
+            cfg_dict[k] = str(cfg_dict[k])
+            dict_str += f"**{k}** : {cfg_dict[k]}  \n"
+        self.summary.add_text("config", dict_str)
 
         if cfg.imbalance_sampler:
             from .imbalanced import ImbalancedDatasetSampler
@@ -225,12 +239,6 @@ class CVMHTrainer:
         total_iter = n_iter_per_epoch * cfg.n_epochs
         opt = factory_optimizer(cfg.optimizer, model, cfg)
         lr_scheduler = factory_lr_scheduler(cfg.lr_scheduler, total_iter, opt, cfg)
-
-        self.summary = SummaryWriter(self.output_folder)
-        # Copy configuration to outputs
-        shutil.copy(self.cfg.yaml_file, os.path.join(self.output_folder, "config.yaml"))
-
-        self.summary.add_text("config", yaml.dump(dict(cfg)))
 
         self.global_iter = 0
 

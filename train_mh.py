@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import argparse
 from src import *
-
+import sys
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
 root_images = os.path.join(root, "images_1024")
@@ -15,6 +15,13 @@ if __name__ == "__main__":
 
     print("Loading ",args.cfg)
     cfg = get_config(args.cfg)
+
+    output_folder = get_output_folder(cfg, root="outputs")
+    os.makedirs(output_folder, exist_ok=True)
+
+    stdout = open(os.path.join(output_folder , "stdout.log"), "w")
+    sys.stdout = stdout
+
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
     df = df_preprocess(df)
@@ -94,7 +101,7 @@ if __name__ == "__main__":
                             criterion,
                             maximize=True,
                             show_dataset=False,
-                            output_folder="outputs",
+                            output_folder=output_folder,
                             imb_callback=lambda dataset, idx: dataset.target[idx],
                             save_pth=True)
         trainer.train()
