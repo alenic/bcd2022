@@ -81,7 +81,7 @@ if __name__ == "__main__":
         model = MultiHead(backbone, heads_num=heads_num, drop_rate_mh=cfg.drop_rate_mh)
     
         if cfg.model_ckpt is not None:
-            print(model.load_state_dict(torch.load(cfg.model_ckpt)))
+            print(model.load_state_dict(torch.load(cfg.model_ckpt, map_location="cpu"), strict=False))
 
 
         train_dataset = BCDDataset(root_images,
