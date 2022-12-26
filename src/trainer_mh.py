@@ -41,14 +41,16 @@ def get_config(config_file, output_folder="outputs"):
     cfg = EasyDict(cfg)
     cfg.yaml_file = config_file
 
-    if not isinstance(cfg.loss_aux.unbalance, list):
-        cfg.loss_aux.unbalance = [cfg.loss_aux.unbalance]*len(cfg.aux_cols)
+    if not isinstance(cfg.loss_aux.weights, list):
+        cfg.loss_aux.weights = [cfg.loss_aux.weights]*len(cfg.aux_cols)
+    
     if not isinstance(cfg.loss_aux.unbalance_perc, list):
         cfg.loss_aux.unbalance_perc = [cfg.loss_aux.unbalance_perc]*len(cfg.aux_cols)
-    if not isinstance(cfg.loss_aux_weights, list):
-        cfg.loss_aux_weights = [cfg.loss_aux_weights]*len(cfg.aux_cols)
-    
-    
+
+    cfg.aux_cols_name = [c[0] for c in cfg.aux_cols]
+    cfg.aux_cols_type = [c[1] for c in cfg.aux_cols]
+    cfg.aux_cols_balance = [c[2] for c in cfg.aux_cols]
+
     print(cfg)
     return cfg
 
@@ -99,8 +101,8 @@ class CVMHEval:
         if criterion is not None:
             loss_target_list = []
 
-        eval_cols = [self.cfg.target] + self.cfg.aux_cols
-        loss_type = [self.cfg.loss_target.loss_type] + self.cfg.loss_aux.loss_type
+        eval_cols = [self.cfg.target] + self.cfg.aux_cols_name
+        loss_type = [self.cfg.loss_target.loss_type] + self.cfg.aux_cols_type
 
         y_true_dict = {c: [] for c in eval_cols}
         y_prob_dict = {c: [] for c in eval_cols}
@@ -166,8 +168,8 @@ class CVMHEval:
         metrics["pf1_mean"][c] = grouped_mean(y_true[c], y_prob[c], self.df_val, thr=best_thr)
 
         # Eval aux
-        for i, c in enumerate(self.cfg.aux_cols):
-            if self.cfg.loss_aux.loss_type[i] in ["bce", "focal"]:
+        for i, c in enumerate(self.cfg.aux_cols_name):
+            if self.cfg.aux_cols_type[i] in ["bce", "focal"]:
                 y_pred = (y_prob[c] >= best_thr).astype(int)
                 metrics["f1score"][c] = f1(y_true[c], y_pred)
             else:
@@ -290,7 +292,7 @@ class CVMHTrainer:
             print(f"best_f1score_thr: {thresholds[c]}")
             self.summary.add_pr_curve(f"Val_{c}/pr", y_true_dict[c], y_prob_dict[c], epoch)
 
-            for c in self.cfg.aux_cols:
+            for c in self.cfg.aux_cols_name:
                 for m in ["f1score"]:
                     print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
                     self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
@@ -341,9 +343,9 @@ class CVMHTrainer:
 
             for i in range(1, len(criterion)):
                 if self.model.heads_num[i] == 1:
-                    loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
+                    loss += self.cfg.loss_aux.weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
-                    loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+                    loss += self.cfg.loss_aux.weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
             
             loss.backward()
 

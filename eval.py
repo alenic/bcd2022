@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     val_dataset = BCDDataset(root_images,
                              df_val,
-                             aux_cols=cfg.aux_cols,
+                             aux_cols=cfg.aux_cols_name,
                              transform=val_tr)
 
     evaluator = CVMHEval(cfg,
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     y_true_dict, y_prob_dict = evaluator.eval(tta=cfg.tta)
     metrics, thresholds = evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
-    for c in cfg.aux_cols:
+    for c in cfg.aux_cols_name:
         for m in ["f1score", "pf1_mean", "pf1_max", "pf1_majority"]:
             print(f"Val {c} -> {m} {metrics[m][c]}")
         print(f"best_f1score_thr: {thresholds[c]}")

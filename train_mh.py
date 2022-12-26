@@ -11,6 +11,7 @@ root_images = os.path.join(root, "images_1024")
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", default="config/default_mh.yaml", type=str)
+    parser.add_argument("--file", action="store_true")
     args = parser.parse_args()
 
     print("Loading ",args.cfg)
@@ -19,10 +20,11 @@ if __name__ == "__main__":
     output_folder = get_output_folder(cfg, root="outputs")
     os.makedirs(output_folder, exist_ok=True)
 
-    stdout = open(os.path.join(output_folder , "stdout.log"), "w")
-    stderr = open(os.path.join(output_folder , "stederr.log"), "w")
-    sys.stdout = stdout
-    sys.stderr = stderr
+    if args.file:
+        stdout = open(os.path.join(output_folder , "stdout.log"), "w")
+        stderr = open(os.path.join(output_folder , "stederr.log"), "w")
+        sys.stdout = stdout
+        sys.stderr = stderr
 
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
@@ -55,7 +57,7 @@ if __name__ == "__main__":
                         df_train[cfg.target])
         ]
         
-        for i, col in enumerate(cfg.aux_cols):
+        for i, col in enumerate(cfg.aux_cols_name):
             # n = number of col values
             n = len(df[col].unique())
             if n == 2:
@@ -63,8 +65,8 @@ if __name__ == "__main__":
             heads_num += [n]
 
             criterion += [
-                factory_loss(cfg.loss_aux.loss_type[i],
-                            cfg.loss_aux.unbalance[i],
+                factory_loss(cfg.aux_cols_type[i],
+                            cfg.aux_cols_balance[i],
                             cfg.loss_aux.unbalance_perc[i],
                             df_train[col])
             ]
@@ -81,16 +83,17 @@ if __name__ == "__main__":
         if cfg.model_ckpt is not None:
             print(model.load_state_dict(torch.load(cfg.model_ckpt)))
 
+
         train_dataset = BCDDataset(root_images,
                                    df_train,
-                                   aux_cols=cfg.aux_cols,
+                                   aux_cols=cfg.aux_cols_name,
                                    target=cfg.target,
                                    in_chans=cfg.in_chans,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDataset(root_images,
                                  df_val,
-                                 aux_cols=cfg.aux_cols,
+                                 aux_cols=cfg.aux_cols_name,
                                  target=cfg.target,
                                  in_chans=cfg.in_chans,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
@@ -108,5 +111,6 @@ if __name__ == "__main__":
                             save_pth=True)
         trainer.train()
 
-        stdout.close()
-        stderr.close()
+        if args.file:
+            stdout.close()
+            stderr.close()
