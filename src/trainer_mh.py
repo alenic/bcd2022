@@ -105,7 +105,9 @@ class CVMHEval:
         y_true_dict = {c: [] for c in eval_cols}
         y_prob_dict = {c: [] for c in eval_cols}
 
-        for iter, (image, label) in enumerate(tqdm(self.val_data_loader)):
+        n_iter = len(self.val_data_loader)
+        pbar = tqdm(total=10)
+        for iter, (image, label) in enumerate(self.val_data_loader):
             image = image.to(self.device)
             with torch.no_grad():
                 output = self.model(image)
@@ -133,6 +135,9 @@ class CVMHEval:
                 y_prob_dict[eval_cols[i]] += list(y_prob)
                 y_true_dict[eval_cols[i]] += list(label[:, i].cpu().numpy())
 
+            if iter % max(1, int(0.1*n_iter)) == 0:
+                pbar.update()
+        
         for i in range(len(eval_cols)):
             y_true_dict[eval_cols[i]] = np.array(y_true_dict[eval_cols[i]] )
             y_prob_dict[eval_cols[i]] = np.array(y_prob_dict[eval_cols[i]] )
@@ -268,6 +273,7 @@ class CVMHTrainer:
         for epoch in range(1, self.cfg.n_epochs+1):
             t_epoch = time.time()
             self.train_epoch(epoch, data_loader=self.train_data_loader, model=self.model, optimizer=self.opt, scheduler=self.lr_scheduler, criterion=self.criterion)
+
             y_true_dict, y_prob_dict, val_loss = self.evaluator.eval(tta=self.cfg.tta, criterion=self.criterion)
 
             self.summary.add_scalar(f"Train/ValLoss{self.cfg.target}", val_loss, epoch)
@@ -288,11 +294,6 @@ class CVMHTrainer:
                 for m in ["f1score"]:
                     print(f"Epoch {epoch} - Val {c} -> {m} {metrics[m][c]}")
                     self.summary.add_scalar(f"Val_{c}/{m}", metrics[m][c], epoch)
-
-  
-            epoch_time = time.time()-t_epoch
-            self.summary.add_scalar(f"Time/EpochTime", epoch_time, epoch)
-            print(f"Epoch {epoch} Time: {epoch_time}")
             
             if epoch == 1:
                 os.makedirs(self.output_folder, exist_ok=True)
@@ -311,14 +312,16 @@ class CVMHTrainer:
                         best_score[m] = score
                         torch.save(self.model.state_dict(), pth)
 
-
+            epoch_time = time.time()-t_epoch
+            self.summary.add_scalar(f"Time/EpochTime", epoch_time, epoch)
+            print(f"Epoch {epoch} Time: {epoch_time}")
 
     def train_epoch(self, epoch, data_loader, model, optimizer, scheduler, criterion):
         model.train()
         y_train_true = []
         y_train_prob = []
-        pbar = tqdm(total=len(data_loader))
         n_iter = len(data_loader)
+        pbar = tqdm(total=10)
         for iter, (image, labels) in enumerate(data_loader):
 
             y_train_true += list(labels[:,0].cpu().numpy())
@@ -335,12 +338,13 @@ class CVMHTrainer:
             
             y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
             loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
-            for i in range(1, len(criterion)):
 
+            for i in range(1, len(criterion)):
                 if self.model.heads_num[i] == 1:
                     loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
                     loss += self.cfg.loss_aux_weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+            
             loss.backward()
 
             optimizer.step()
@@ -349,8 +353,10 @@ class CVMHTrainer:
                 self.summary.add_scalar("Train/Loss", loss, self.global_iter)
                 self.summary.add_scalar("Train/lr", optimizer.param_groups[0]['lr'], self.global_iter)
                 self.global_iter += 1
+            
+            if iter % max(1, int(0.1*n_iter)) == 0:
+                pbar.update()
 
-            pbar.update()
             if scheduler is not None:
                 scheduler.step()
         
@@ -368,5 +374,5 @@ class CVMHTrainer:
         self.summary.add_scalar("Train/loss_neg", loss_neg, epoch)
 
         unique, counts = np.unique(y_train_true, return_counts=True)
-        print("Train Pos Neg", unique, counts, counts/sum(counts))
+        print(f"Tain Epoch {epoch} finished - Train Pos Neg", unique, counts, counts/sum(counts))
 

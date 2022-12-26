@@ -20,7 +20,9 @@ if __name__ == "__main__":
     os.makedirs(output_folder, exist_ok=True)
 
     stdout = open(os.path.join(output_folder , "stdout.log"), "w")
+    stderr = open(os.path.join(output_folder , "stederr.log"), "w")
     sys.stdout = stdout
+    sys.stderr = stderr
 
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
@@ -105,3 +107,6 @@ if __name__ == "__main__":
                             imb_callback=lambda dataset, idx: dataset.target[idx],
                             save_pth=True)
         trainer.train()
+
+        stdout.close()
+        stderr.close()

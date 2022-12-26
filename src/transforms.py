@@ -24,7 +24,6 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
     tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=1)]
     
     mh = [12, 14, 16, 18, 20, 22][severity]
-
     tr += [A.CoarseDropout(p=1, max_holes=mh,
            min_height=input_size[1]//32, max_height=input_size[1]//32,
            min_width=input_size[1]//32,  max_width=input_size[1]//32)]
