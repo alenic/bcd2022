@@ -77,7 +77,10 @@ if __name__ == "__main__":
                                  n_hidden=cfg.n_hidden,
                                  drop_rate_back=cfg.drop_rate_back
                                  )
-    
+        if cfg.freeze:
+            for p in backbone.parameters():
+                p.requires_grad = False
+        
         model = MultiHead(backbone, heads_num=heads_num, drop_rate_mh=cfg.drop_rate_mh)
     
         if cfg.model_ckpt is not None:

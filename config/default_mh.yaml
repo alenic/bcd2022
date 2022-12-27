@@ -14,6 +14,8 @@ perc_sample: [1.0, 1.0]
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
+# backbone freeze
+freeze: false
 
 in_chans: 1
 n_hidden: null
