@@ -1,6 +1,7 @@
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import torch.nn as nn
 from collections.abc import MutableMapping
 
 def plot_interactive_precision_recall_curve(precision, recall, threshold):
@@ -42,3 +43,26 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
         else:
             items.append((new_key, v))
     return dict(items)
+
+
+def load_state_dict_improved(state_dict, model: nn.Module, replace_str=""):
+    model_state_dict = model.state_dict()
+    ckpt_state_dict = {}
+
+    for key in state_dict:
+        ckpt_state_dict[key.replace(replace_str, "")] = state_dict[key]
+    
+
+    n_load = 0
+    for key in model_state_dict:
+        if key in ckpt_state_dict.keys():
+            model_state_dict[key] = ckpt_state_dict[key]
+            n_load += 1
+        else:
+            print(f"model {key} is not in checkpoint")
+
+    for key in ckpt_state_dict:
+        if key not in model_state_dict.keys():
+            print(f"checkpoint {key} is not in model")
+    
+    model.load_state_dict(model_state_dict)

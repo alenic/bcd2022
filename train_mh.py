@@ -77,14 +77,30 @@ if __name__ == "__main__":
                                  n_hidden=cfg.n_hidden,
                                  drop_rate_back=cfg.drop_rate_back
                                  )
+        
+        if cfg.model_ckpt is not None:
+            state_dict = torch.load(cfg.model_ckpt, map_location="cpu")
+
+            print("ckpt state dict")
+            for i,k in enumerate(state_dict.keys()):
+                print(k)
+                if i>=5: break
+            
+            print("model state dict")
+            model_sd = backbone.state_dict()
+            for i,k in enumerate(model_sd.keys()):
+                print(k)
+                if i>=5: break
+
+            print(load_state_dict_improved(state_dict, backbone, replace_str="backbone."))
+        
         if cfg.freeze:
             for p in backbone.parameters():
                 p.requires_grad = False
         
         model = MultiHead(backbone, heads_num=heads_num, drop_rate_mh=cfg.drop_rate_mh)
     
-        if cfg.model_ckpt is not None:
-            print(model.load_state_dict(torch.load(cfg.model_ckpt, map_location="cpu"), strict=False))
+
 
 
         train_dataset = BCDDataset(root_images,
