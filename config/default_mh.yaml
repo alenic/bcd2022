@@ -11,6 +11,7 @@ folds: [0]
 imbalance_sampler: false
 max_negative_examples: null
 perc_sample: [1.0, 1.0]
+breast_crop: false
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
@@ -20,8 +21,8 @@ freeze: false
 in_chans: 1
 n_hidden: null
 
-input_size: [256, 512]
-test_input_size: [256, 512]
+input_size: [512, 512]
+test_input_size: [512, 512]
 model_ckpt: null
 
 drop_rate_back: 0.0

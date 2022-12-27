@@ -17,7 +17,7 @@ def pil_loader(path):
 
 
 class BCDDataset:
-    def __init__(self, root, df, aux_cols, target, test=False, in_chans=1, extension="png", transform=None, return_path=False):
+    def __init__(self, root, df, aux_cols, target, test=False, in_chans=1, extension="png", transform=None, breast_crop=False, return_path=False):
         self.path = [os.path.join(root, f"{p}_{im}.{extension}") for p, im in zip(df["patient_id"].values, df["image_id"].values)]
 
         self.target = df[target].values
@@ -30,6 +30,7 @@ class BCDDataset:
         
         self.df_col = df.loc[:, self.aux_cols]
         self.df_col.index = np.arange(len(self.df_col))
+        self.breast_crop = breast_crop
     
 
     def __len__(self):
@@ -37,7 +38,8 @@ class BCDDataset:
     
     def __getitem__(self, index):
         image = cv2.imread(self.path[index], 0)
-        image = crop_breast(image)
+        if self.breast_crop:
+            image = crop_breast(image)
 
         if self.in_chans == 3:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)

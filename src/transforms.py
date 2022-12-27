@@ -49,7 +49,7 @@ def crop_breast(img: np.array):
     if len(contours) != 0:
         max_contour = max(contours, key=cv2.contourArea)
         x,y,w,h = cv2.boundingRect(max_contour)
-        img = img[y:y+h, x:x+w]
+        img = img[:, x:x+w]
 
     return img
 

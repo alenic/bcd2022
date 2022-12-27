@@ -108,6 +108,7 @@ if __name__ == "__main__":
                                    aux_cols=cfg.aux_cols_name,
                                    target=cfg.target,
                                    in_chans=cfg.in_chans,
+                                   breast_crop=cfg.breast_crop,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDataset(root_images,
@@ -115,6 +116,7 @@ if __name__ == "__main__":
                                  aux_cols=cfg.aux_cols_name,
                                  target=cfg.target,
                                  in_chans=cfg.in_chans,
+                                 breast_crop=cfg.breast_crop,
                                  transform=transform_albumentations(get_val_tr(cfg.test_input_size, cfg.mean, cfg.std)))
 
         trainer = CVMHTrainer(cfg,
