@@ -41,10 +41,13 @@ if __name__ == "__main__":
         
         # Undersampling
         if cfg.max_negative_examples is not None:
-            df_train_neg = df_train[df_train[cfg.target] == 0].sample(cfg.max_negative_examples)
-            df_train_pos = df_train[df_train[cfg.target] == 1]
-            df_train = pd.concat([df_train_neg, df_train_pos])
-            print("-- Fold undersampled --")
+            if cfg.preprocess_softlabel == False:
+                print("preprocess_softlabel is True,max_negative_examples can't be applied! ")
+            else:
+                df_train_neg = df_train[df_train[cfg.target] == 0].sample(cfg.max_negative_examples)
+                df_train_pos = df_train[df_train[cfg.target] == 1]
+                df_train = pd.concat([df_train_neg, df_train_pos])
+                print("Negative undersampled --")
 
         print(cfg.target, df_train[cfg.target].value_counts())
         print(cfg.target, df_val[cfg.target].value_counts())

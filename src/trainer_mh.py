@@ -248,7 +248,7 @@ class CVMHTrainer:
         lr_scheduler = factory_lr_scheduler(cfg.lr_scheduler, total_iter, opt, cfg)
 
         self.global_iter = 0
-
+        self.df_val = df_val
         self.cfg = cfg
         self.train_data_loader = train_data_loader
         self.val_data_loader = val_data_loader
@@ -280,6 +280,8 @@ class CVMHTrainer:
 
             self.summary.add_scalar(f"Train/ValLoss{self.cfg.target}", val_loss, epoch)
 
+            # This is to prevent soft labeling
+            y_true_dict[self.cfg.target] = self.df_val["target"].values
             metrics, thresholds = self.evaluator.eval_metrics(y_true_dict, y_prob_dict)
 
             # Add Target metrics to summary
@@ -345,7 +347,7 @@ class CVMHTrainer:
                 if self.model.heads_num[i] == 1:
                     loss += self.cfg.loss_aux.weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.float32))
                 else:
-                    loss += self.cfg.loss_aux.weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i])
+                    loss += self.cfg.loss_aux.weights[i-1]*criterion[i](outputs[i].squeeze(-1), labels[:,i].type(torch.long))
             
             loss.backward()
 
