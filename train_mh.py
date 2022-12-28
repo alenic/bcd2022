@@ -15,7 +15,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("Loading ",args.cfg)
-    cfg = get_config(args.cfg)
+    cfg = get_config("config/default_mh.yaml")
+    cfg_custom = get_config(args.cfg)
+    cfg.update(cfg_custom)
 
     output_folder = get_output_folder(cfg, root="outputs")
     os.makedirs(output_folder, exist_ok=True)
