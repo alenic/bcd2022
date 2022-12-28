@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     seed_all(cfg.random_state)
     df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
-    df = df_preprocess(df)
+    df = df_preprocess(df, cfg.preprocess_softlabel)
 
     print(df.head())
 

@@ -12,6 +12,7 @@ imbalance_sampler: false
 max_negative_examples: null
 perc_sample: [1.0, 1.0]
 breast_crop: false
+preprocess_softlabel: true
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
