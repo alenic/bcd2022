@@ -80,7 +80,8 @@ if __name__ == "__main__":
                                  cfg.model_name,
                                  in_chans=cfg.in_chans,
                                  n_hidden=cfg.n_hidden,
-                                 drop_rate_back=cfg.drop_rate_back
+                                 drop_rate_back=cfg.drop_rate_back,
+                                 pretrained=cfg.pretrained
                                  )
         
         if cfg.model_ckpt is not None:

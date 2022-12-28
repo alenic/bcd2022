@@ -2,8 +2,8 @@ project_name: multihead
 device: cuda:0
 random_state: 2022
 n_epochs: 5
-batch_size: 12
-test_batch_size: 16
+batch_size: 32
+test_batch_size: 64
 num_workers: 8
 
 # =========================== Dataset ===================
@@ -16,6 +16,7 @@ preprocess_softlabel: false
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
+pretrained: false
 # backbone freeze
 freeze: false
 
@@ -27,7 +28,7 @@ test_input_size: [128, 256]
 model_ckpt: null
 
 drop_rate_back: 0.0
-drop_rate_mh: 0.25
+drop_rate_mh: 0.0
 
 # ===================== Optimization =====================
 target: cancer

@@ -9,9 +9,10 @@ class TimmBackbone(nn.Module):
     def __init__(self, model_name: str,
                        in_chans: int = 1,
                        n_hidden: int = None,
-                       drop_rate_back: float=0.0):
+                       drop_rate_back: float=0.0,
+                       pretrained=False):
         super().__init__()
-        self.back = timm.create_model(model_name, num_classes=0, in_chans=in_chans, pretrained=True)
+        self.back = timm.create_model(model_name, num_classes=0, in_chans=in_chans, pretrained=pretrained)
         input_size = timm.get_pretrained_cfg_value(model_name, "input_size")
         self.n_hidden = n_hidden
         self.drop_rate = drop_rate_back
@@ -51,9 +52,10 @@ class TimmBackboneLowFeatures(nn.Module):
     def __init__(self, model_name: str,
                        in_chans: int = 1,
                        n_hidden: int = None,
-                       drop_rate_back: float=0.0):
+                       drop_rate_back: float=0.0,
+                       pretrained=False):
         super().__init__()
-        self.back = timm.create_model(model_name, num_classes=0, in_chans=in_chans, pretrained=True)
+        self.back = timm.create_model(model_name, num_classes=0, in_chans=in_chans, pretrained=pretrained)
         input_size = timm.get_pretrained_cfg_value(model_name, "input_size")
 
         self.monitor = ForwardMonitor(self.back, verbose=True)
