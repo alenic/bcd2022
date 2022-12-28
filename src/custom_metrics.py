@@ -30,7 +30,7 @@ def pf1(y_true, y_prob):
 
 
 def f1(y_true, y_pred, average="binary"):
-    return f1_score(y_true.flatten(), y_pred.flatten(), average=average)
+    return pf1(y_true.flatten(), y_pred.flatten(), average=average)
 
 
 def grouped_mean(y_true, y_prob, df_val, thr):
