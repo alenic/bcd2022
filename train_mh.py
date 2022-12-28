@@ -104,9 +104,6 @@ if __name__ == "__main__":
                 p.requires_grad = False
         
         model = MultiHead(backbone, heads_num=heads_num, drop_rate_mh=cfg.drop_rate_mh)
-    
-
-
 
         train_dataset = BCDDataset(root_images,
                                    df_train,

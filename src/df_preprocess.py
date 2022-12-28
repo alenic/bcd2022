@@ -7,9 +7,9 @@ def df_preprocess(df: pd.DataFrame, softlabel=False):
     # Age
     new_df.age.fillna(new_df.age.mean(), inplace=True)
     new_df['age'] = pd.qcut(new_df.age, 10, labels=range(10), retbins=False).astype(int)
+    new_df["target"] = new_df["cancer"]
     
     if softlabel:
-        new_df["target"] = new_df["cancer"]
         new_df.loc[new_df["difficult_negative_case"]==1, "cancer"] = 0.5
 
     new_df[COLS] = new_df[COLS].apply(LabelEncoder().fit_transform)
