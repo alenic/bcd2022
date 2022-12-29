@@ -65,4 +65,4 @@ def load_state_dict_improved(state_dict, model: nn.Module, replace_str=""):
         if key not in model_state_dict.keys():
             print(f"checkpoint {key} is not in model")
     
-    model.load_state_dict(model_state_dict)
+    return model.load_state_dict(model_state_dict)
