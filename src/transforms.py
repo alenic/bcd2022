@@ -12,22 +12,27 @@ def transform_albumentations(tr):
 
 
 def get_train_tr(input_size, severity=2, mean=0, std=1):
-    rot = [2, 4, 7, 10, 12, 15][severity]
-    tr = [A.ShiftScaleRotate(p=1, rotate_limit=rot, border_mode=cv2.BORDER_CONSTANT)]
+    tr = []
+
+    rot = [0, 2, 4, 7, 10, 12, 15][severity]
+    if rot > 0:
+        tr += [A.ShiftScaleRotate(p=1, rotate_limit=rot, border_mode=cv2.BORDER_CONSTANT)]
+        #tr += [A.ElasticTransform(1, 10, rot, border_mode=cv2.BORDER_CONSTANT, p=0.5)]
+
+
+    bl = [0.0, 0.005, 0.01, 0.02, 0.04, 0.08, 0.12][severity]
+    cl = [0.0, 0.005, 0.01, 0.02, 0.04, 0.08, 0.12][severity]
+    tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=0.5)]
 
     tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
 
     tr += [A.HorizontalFlip(p=0.5)]
 
-    bl = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1][severity]
-    cl = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1][severity]
-    tr += [A.RandomBrightnessContrast(brightness_limit=bl, contrast_limit=cl, p=1)]
-    
-    mh = [12, 14, 16, 18, 20, 22][severity]
-    tr += [A.CoarseDropout(p=1, max_holes=mh,
-           min_height=input_size[1]//32, max_height=input_size[1]//32,
-           min_width=input_size[1]//32,  max_width=input_size[1]//32)]
-
+    mh = [0, 5, 8, 12, 15, 18, 22][severity]
+    if mh > 0:
+        tr += [A.CoarseDropout(p=0.5, max_holes=mh,
+            min_height=input_size[1]//32, max_height=input_size[1]//32,
+            min_width=input_size[1]//32,  max_width=input_size[1]//32)]
 
     tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
 
@@ -70,7 +75,7 @@ if __name__ == "__main__":
         except:
             print("Error in image", image_file)
         
-        tr = transform_albumentations(get_train_tr(severity=3, input_size=(256, 512)))
+        tr = transform_albumentations(get_train_tr(severity=0, input_size=(256, 512)))
         img_crop_t = tr(img_crop)
         print(img_crop_t.min(), img_crop_t.max())
         img_crop = T.ToPILImage()(img_crop_t)

@@ -1,5 +1,7 @@
 from .models import *
 from .modules import *
+import numpy as np
+
 
 def factory_model(model_type, model_name, *args, **kwargs):
     if model_type == "timm":
@@ -46,12 +48,34 @@ def factory_loss(loss_type, unbalance, unbalance_perc, df_col):
 
 
 
+def add_weight_decay(model, weight_decay=1e-5, skip_list=()):
+    decay = []
+    no_decay = []
+    for name, param in model.named_parameters():
+        if not param.requires_grad:
+            continue
+        if len(param.shape) == 1 or np.any([v in name.lower()  for v in skip_list]):
+            # print(name, 'no decay')
+            no_decay.append(param)
+        else:
+            # print(name, 'decay')
+            decay.append(param)
+    return [
+        {'params': no_decay, 'weight_decay': 0.},
+        {'params': decay, 'weight_decay': weight_decay}]
+
+
+
 def factory_optimizer(opt_type, model, cfg):
     # TODO : optimizer factory
     if opt_type == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+        return torch.optim.AdamW(add_weight_decay(model, weight_decay=cfg.weight_decay, skip_list=['bias']),
+                                 lr=cfg.lr,
+                                 weight_decay=cfg.weight_decay)
     if opt_type == "adam":
-        return torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+        return torch.optim.Adam(add_weight_decay(model, weight_decay=cfg.weight_decay, skip_list=['bias']),
+                                 lr=cfg.lr,
+                                 weight_decay=cfg.weight_decay)
     elif opt_type == "sgd":
         return torch.optim.SGD(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay, momentum=cfg.opt_sgd_momentum)
     else:

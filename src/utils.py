@@ -2,7 +2,20 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import torch.nn as nn
+import random
+import os
+import torch
 from collections.abc import MutableMapping
+
+
+def seed_all(random_state):
+    random.seed(random_state)
+    os.environ['PYTHONHASHSEED'] = str(random_state)
+    np.random.seed(random_state)
+    torch.manual_seed(random_state)
+    torch.cuda.manual_seed(random_state)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 def plot_interactive_precision_recall_curve(precision, recall, threshold):
     df = pd.DataFrame()

@@ -1,23 +1,22 @@
 project_name: multihead
 device: cuda:0
 random_state: 2022
-n_epochs: 5
+n_epochs: 8
 batch_size: 32
 test_batch_size: 64
-num_workers: 8
+num_workers: 4
 
 # =========================== Dataset ===================
 folds: [0]
-imbalance_sampler: false
+imbalance_sampler: true
 max_negative_examples: null
 perc_sample: [1.0, 1.0]
-breast_crop: false
+breast_crop: true
 preprocess_softlabel: false
 # =========================== Model =====================
 model_type: "timm"
 model_name: "tf_efficientnetv2_s_in21ft1k"
-pretrained: false
-# backbone freeze
+pretrained: true
 freeze: false
 
 in_chans: 1
@@ -37,7 +36,7 @@ loss_target:
   # focal, bce
   loss_type: "bce"
   # apply automatic unbalancing reweighting: weight_i=total_num/num(class_i)
-  unbalance: true
+  unbalance: false
   # automatic weighting is performed using unbalance_perc*weight_i
   unbalance_perc: 0.5
 
@@ -55,7 +54,8 @@ aux_cols: [
            [BIRADS, ce, false],
            [density, ce, false],
            [difficult_negative_case, bce, true],
-           [age, ce, false]]
+           [age, ce, false]
+           ]
 loss_aux:
   # automatic weighting is performed using unbalance_perc*weight_i
   unbalance_perc: 0.5
@@ -64,26 +64,25 @@ loss_aux:
 
 # Optimizer
 # sgd, adam, adamw
-optimizer: adam
+optimizer: adamw
 # sgd
 opt_sgd_momentum: 0.9
 
 lr: 1.0e-3
-weight_decay: 1.0e-8
+weight_decay: 1.0e-4
 
 # const, cosineannealing, step
 lr_scheduler: cosineannealing
 
 # lr_cosineannealing
-lr_cosineannealing_eta_mul: 0.1   # from lr to eta_mul*lr
+lr_cosineannealing_eta_mul: 0.01   # from lr to eta_mul*lr
 
 # lr_step
 lr_step_milestones: [10, 20]
 lr_step_gamma: 0.1
 
-
 # ===================== Augmentations ===================
-severity: 5
+severity: 3
 mean: 0.5
 std: 0.5
 tta: false

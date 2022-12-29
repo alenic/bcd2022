@@ -38,6 +38,7 @@ class BCDDataset:
     
     def __getitem__(self, index):
         image = cv2.imread(self.path[index], 0)
+
         if self.breast_crop:
             image = crop_breast(image)
 

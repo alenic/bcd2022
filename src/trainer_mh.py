@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import random
 import torch
 import yaml
 from easydict import EasyDict
@@ -17,14 +16,7 @@ from .custom_metrics import *
 from .models_factory import *
 from .utils import *
 
-def seed_all(random_state):
-    random.seed(random_state)
-    os.environ['PYTHONHASHSEED'] = str(random_state)
-    np.random.seed(random_state)
-    torch.manual_seed(random_state)
-    torch.cuda.manual_seed(random_state)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
+
 
 
 def get_output_folder(cfg, root="outputs"):
@@ -76,6 +68,8 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
         plt.title(str(label))
     plt.show()
 
+
+
 class CVMHEval:
     def __init__(self, cfg, df_val, model, val_dataset):
         self.cfg = cfg
@@ -111,14 +105,15 @@ class CVMHEval:
         pbar = tqdm(total=10)
         for iter, (image, label) in enumerate(self.val_data_loader):
             image = image.to(self.device)
-            with torch.no_grad():
-                output = self.model(image)
+            with torch.cuda.amp.autocast():
+                with torch.no_grad():
+                    output = self.model(image)
 
-                if criterion is not None:
-                    label = label.to(self.device)
-                    loss_target_list += [criterion[0](output[0].squeeze(-1), label[:,0].type(torch.float32)).item()]
-                if tta:
-                    output_tta = self.model(image.flip(-1))
+            if criterion is not None:
+                label = label.to(self.device)
+                loss_target_list += [criterion[0](output[0].squeeze(-1), label[:,0].type(torch.float32)).item()]
+            if tta:
+                output_tta = self.model(image.flip(-1))
 
             for i in range(len(eval_cols)):
                 if loss_type[i] in ["bce", "focal"]:
@@ -337,8 +332,9 @@ class CVMHTrainer:
 
             image = image.to(self.device)
             labels = labels.to(self.device)
-
-            outputs = model(image)
+        
+            with torch.cuda.amp.autocast():
+                outputs = model(image)
             
             y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
             loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
