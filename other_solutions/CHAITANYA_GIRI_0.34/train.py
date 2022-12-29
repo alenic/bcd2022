@@ -44,7 +44,7 @@ class CFG:
     save_weights = True
     
     img_size = (1024, 512)
-    batch_size = 8
+    batch_size = 16
     epochs = 5
     use_fp16 = True
     n_folds = 5
