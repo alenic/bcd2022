@@ -11,13 +11,13 @@ import json
 import tqdm
 
 MAX_SIZE = 1024
-NUM_PROCESS = 4
+NUM_PROCESS = 8
 
 J = os.path.join
 
 out_dataset = J(os.environ["DATASET_ROOT"], "bcd2022", f"alenic_train_images_{MAX_SIZE}")
 out_json_dataset = J(os.environ["DATASET_ROOT"], "bcd2022", f"alenic_train_json_{MAX_SIZE}")
-root = J(os.environ["DATASET_ROOT"], "bcd2022", "eda")
+root = J(os.environ["DATASET_ROOT"], "rsna-bcd2022-dicom", "train_images")
 
 
 
