@@ -38,9 +38,10 @@ def dicom2array(path, max_size=MAX_SIZE):
 
 def worker(paths, id_worker):
     info_dict = {}
-    json_count = 0
     for k, p in enumerate(tqdm.tqdm(paths)):
-        data, info = dicom2array(p)
+        #data, info = dicom2array(p)
+        ds = dicomsdl.open(p)
+        info = ds.getPixelDataInfo()
         
         path_split = p.split("/")
         image_id = path_split[-1].replace(".dcm","")
@@ -48,14 +49,13 @@ def worker(paths, id_worker):
         id_name = patient_id+"_"+image_id
         info_dict[id_name] = info
 
-        np.savez_compressed(J(out_dataset, f"{id_name}.npz"), data=data)
+        #np.savez_compressed(J(out_dataset, f"{id_name}.npz"), data=data)
 
-        if (k+1) % 1000 == 0:
-            json_count += 1
-            with open(J(out_json_dataset, f"{id_worker}_{json_count:04d}.json"), "w") as fp:
-                json.dump(info_dict, fp)
+
+    with open(J(out_json_dataset, f"{id_worker}.json"), "w") as fp:
+        json.dump(info_dict, fp)
             
-            info_dict = {}
+
     
 
 
