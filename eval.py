@@ -19,7 +19,7 @@ root_images = os.path.join(root, "images_1024")
 
 if __name__ == "__main__":
     cfg = get_config(config_file)
-    df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
+    df = pd.read_csv(os.path.join("data", "train_5fold_aug.csv"))
 
     val_tr = transform_albumentations(get_val_tr(cfg.test_input_size))
 

@@ -6,7 +6,7 @@ from src import *
 import sys
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "images_1024")
+root_images = os.path.join(root, "alenic_train_images_1024")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         sys.stderr = stderr
 
     seed_all(cfg.random_state)
-    df = pd.read_csv(os.path.join("data", "train_5fold.csv"))
+    df = pd.read_csv(os.path.join("data", "train_5fold_aug.csv"))
     df = df_preprocess(df, cfg.preprocess_softlabel)
 
     print(df.head())
@@ -55,16 +55,17 @@ if __name__ == "__main__":
 
         # Target
         heads_num = [1]
+
         criterion = [
             factory_loss(cfg.loss_target.loss_type,
                         cfg.loss_target.unbalance,
                         cfg.loss_target.unbalance_perc,
-                        df_train[cfg.target])
+                        df_train["target"])
         ]
         
         for i, col in enumerate(cfg.aux_cols_name):
             # n = number of col values
-            n = len(df[col].unique())
+            n = len(df.loc[df[col] != 100, col].unique())
             if n == 2:
                 n = 1
             heads_num += [n]
@@ -106,7 +107,7 @@ if __name__ == "__main__":
         
         model = MultiHead(backbone, heads_num=heads_num, drop_rate_mh=cfg.drop_rate_mh)
         
-        train_dataset = BCDDataset(root_images,
+        train_dataset = BCDDatasetNPZ(root_images,
                                    df_train,
                                    aux_cols=cfg.aux_cols_name,
                                    target=cfg.target,
@@ -114,7 +115,7 @@ if __name__ == "__main__":
                                    breast_crop=cfg.breast_crop,
                                    transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
                                    
-        val_dataset = BCDDataset(root_images,
+        val_dataset = BCDDatasetNPZ(root_images,
                                  df_val,
                                  aux_cols=cfg.aux_cols_name,
                                  target=cfg.target,

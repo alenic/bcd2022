@@ -16,9 +16,6 @@ from .custom_metrics import *
 from .models_factory import *
 from .utils import *
 
-
-
-
 def get_output_folder(cfg, root="outputs"):
     date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_name = cfg.model_name.replace("/","_").replace("@","_")
@@ -26,7 +23,7 @@ def get_output_folder(cfg, root="outputs"):
     folder_out = os.path.join(root, folder_out)
     return folder_out
 
-def get_config(config_file, output_folder="outputs"):
+def get_config(config_file):
     with open(config_file, "r") as fp:
         cfg = yaml.load(fp, yaml.loader.SafeLoader)
     

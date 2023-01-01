@@ -42,7 +42,7 @@ def factory_loss(loss_type, unbalance, unbalance_perc, df_col):
         else:
             weight = None
         print(f"Factory CrossEntropyLoss '{df_col.name}' with weight={weight}")
-        return nn.CrossEntropyLoss(weight=weight)
+        return nn.CrossEntropyLoss(weight=weight, ignore_index=100)
     else:
         raise ValueError()
 
