@@ -17,7 +17,19 @@ def pil_loader(path):
 
 
 class BCDDatasetNPZ:
-    def __init__(self, root, df, aux_cols=[], target="cancer", test=False, in_chans=1, extension="npz", transform=None, breast_crop=True, return_path=False):
+    def __init__(self,
+                root,
+                df, 
+                aux_cols=[],
+                target="cancer",
+                test=False,
+                in_chans=1,
+                extension="npz",
+                transform=None,
+                breast_crop=True,
+                return_breast_id=False,
+                return_path=False):
+
         self.path = [os.path.join(root, f"{p}_{im}.{extension}") for p, im in zip(df["patient_id"].values, df["image_id"].values)]
 
         self.intepret = df["interpret"].values
@@ -26,6 +38,7 @@ class BCDDatasetNPZ:
         self.target = df[target].values
         self.test = test
         self.transform = transform
+        self.breast_id = df["breast_id"].values
         
         self.aux_cols = [target]+aux_cols
         self.return_path = return_path
@@ -34,7 +47,7 @@ class BCDDatasetNPZ:
         self.df_col = df.loc[:, self.aux_cols]
         self.df_col.index = np.arange(len(self.df_col))
         self.breast_crop = breast_crop
-    
+        self.return_breast_id = return_breast_id
 
     def __len__(self):
         return len(self.path)
@@ -50,7 +63,7 @@ class BCDDatasetNPZ:
         image = npz_preprocessing(image)
         if self.in_chans == 3:
             image_medium =  npz_preprocessing(image, quant=(0.1, 0.9))
-            image_high =  npz_preprocessing(image, quant=(0.5, 1)) 
+            image_high =  npz_preprocessing(image, quant=(0.5, 1))
             image3 = np.zeros(list(image.shape)+[3], dtype=np.uint8)
             image3[:, :, 0] = image
             image3[:, :, 1] = image_medium
@@ -65,11 +78,15 @@ class BCDDatasetNPZ:
                 return image, self.path[index]
             return image
         
+        return_list = []
+
+        if self.return_breast_id:
+            return_list += [self.breast_id[index]]
 
         if self.return_path:
-            return image, torch.from_numpy(self.df_col.values[index, :]), self.path[index]
+            return_list += [self.path[index]]
 
-        return image, torch.from_numpy(self.df_col.values[index, :])
+        return (image, torch.from_numpy(self.df_col.values[index, :])) + tuple(return_list)
 
 
 

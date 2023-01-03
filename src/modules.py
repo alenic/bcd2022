@@ -39,6 +39,35 @@ class FocalLoss(nn.Module):
         return torch.mean(loss, dim=-1)
 
 
+
+class GroupedBCEWithLogitsLoss(nn.Module):
+    def __init__(self,
+                 pos_weight: Optional[Tensor] = None,
+                 group_reduction="mean",
+                 eps=1e-6
+                 ) -> None:
+        super(GroupedBCEWithLogitsLoss, self).__init__()
+        if pos_weight is None:
+            pos_weight = 1
+        self.pos_weight = float(pos_weight.item())
+        self.group_reduction = group_reduction
+
+
+    def forward(self, input: Tensor, target: Tensor, group_id: Tensor) -> Tensor:
+        unique = group_id.unique()
+        loss = 0
+        nu = len(unique)
+        for i in range(nu):
+            bool_selection = unique[i] == group_id
+            reduced_input = torch.mean(input[bool_selection])
+            grouped_target = target[bool_selection]
+            reduced_target = torch.max(grouped_target)
+            loss += self.pos_weight*reduced_target*nn.functional.logsigmoid(reduced_input)
+            loss += (1.0-reduced_target)*nn.functional.logsigmoid(1-reduced_input)
+
+        return -loss / nu
+
+
 if __name__ == "__main__":
     loss = FocalLoss(alpha=1, gamma=2)
     print(loss(torch.tensor([[10.0]]), torch.tensor([[1.0]])))

@@ -34,6 +34,14 @@ def factory_loss(loss_type, unbalance, unbalance_perc, df_col):
             pos_weight  = None
         print(f"Factory BCEWithLogitsLoss '{df_col.name}' with pos_weight={pos_weight}")
         return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    elif loss_type == "gbce":
+        if unbalance:
+            pos_weight = unbalance_perc*n_tot/counts[1]
+            pos_weight = torch.tensor([pos_weight])
+        else:
+            pos_weight  = None
+        print(f"Factory GroupedBCEWithLogitsLoss '{df_col.name}' with pos_weight={pos_weight}")
+        return GroupedBCEWithLogitsLoss(pos_weight=pos_weight)
     elif loss_type == "ce":
         if unbalance:
             weight = [(n_tot/counts[i]) for i in range(n_val)]
@@ -77,7 +85,8 @@ def factory_optimizer(opt_type, model, cfg):
                                  lr=cfg.lr,
                                  weight_decay=cfg.weight_decay)
     elif opt_type == "sgd":
-        return torch.optim.SGD(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay, momentum=cfg.opt_sgd_momentum)
+        return torch.optim.SGD(add_weight_decay(model, weight_decay=cfg.weight_decay, skip_list=['bias']),
+                              lr=cfg.lr, weight_decay=cfg.weight_decay, momentum=cfg.opt_sgd_momentum)
     else:
         raise ValueError()
 

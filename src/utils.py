@@ -6,7 +6,11 @@ import random
 import os
 import torch
 from collections.abc import MutableMapping
-
+import datetime
+import yaml
+import matplotlib.pyplot as plt
+from easydict import EasyDict
+import torchvision.transforms as T
 
 def seed_all(random_state):
     random.seed(random_state)
@@ -79,3 +83,83 @@ def load_state_dict_improved(state_dict, model: nn.Module, replace_str=""):
             print(f"checkpoint {key} is not in model")
     
     return model.load_state_dict(model_state_dict)
+
+
+
+
+def get_output_folder(cfg, root="outputs"):
+    date = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    model_name = cfg.model_name.replace("/","_").replace("@","_")
+    folder_out = f"{date}_{model_name}"
+    folder_out = os.path.join(root, folder_out)
+    return folder_out
+
+def get_config(config_file):
+    with open(config_file, "r") as fp:
+        cfg = yaml.load(fp, yaml.loader.SafeLoader)
+    
+    cfg = EasyDict(cfg)
+    cfg.yaml_file = config_file
+
+    if not isinstance(cfg.loss_aux.weights, list):
+        cfg.loss_aux.weights = [cfg.loss_aux.weights]*len(cfg.aux_cols)
+    
+    if not isinstance(cfg.loss_aux.unbalance_perc, list):
+        cfg.loss_aux.unbalance_perc = [cfg.loss_aux.unbalance_perc]*len(cfg.aux_cols)
+
+    cfg.aux_cols_name = [c[0] for c in cfg.aux_cols]
+    cfg.aux_cols_type = [c[1] for c in cfg.aux_cols]
+    cfg.aux_cols_balance = [c[2] for c in cfg.aux_cols]
+
+    print(cfg)
+    return cfg
+
+def optimize_metric(metric_func, y_true, y_prob, N=100, dtype=int):
+    best_score = 0
+    for thr in np.linspace(0, 1, N):
+        y_pred = (y_prob>=thr).astype(dtype)
+        score = metric_func(y_true, y_pred)
+        if score > best_score:
+            best_score = score
+            best_thr = thr
+    
+    return best_score, best_thr
+
+
+def show_batch(image_tensor, label=None, mean=None, std=None):
+    img = torch.clone(image_tensor)
+    if mean is not None:
+        if std is not None:
+            img = (img*std + mean)
+    plt.imshow(T.ToPILImage()(img))
+    if label is not None:
+        plt.title(str(label))
+    plt.show()
+
+
+
+
+def sigmoid(x):
+    def _positive_sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    def _negative_sigmoid(x):
+        # Cache exp so you won't have to calculate it twice
+        exp = np.exp(x)
+        return exp / (exp + 1)
+    x = np.array(x)
+    positive = x >= 0
+    # Boolean array inversion is faster than another comparison
+    negative = ~positive
+
+    # empty contains junk hence will be faster to allocate
+    # Zeros has to zero-out the array after allocation, no need for that
+    # See comment to the answer when it comes to dtype
+    result = np.empty_like(x)
+    result[positive] = _positive_sigmoid(x[positive])
+    result[negative] = _negative_sigmoid(x[negative])
+
+    return result
+
+if __name__ == "__main__":
+    print(sigmoid(1000), sigmoid(-1000))

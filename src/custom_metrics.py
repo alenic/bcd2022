@@ -20,7 +20,11 @@ def pf1(y_true, y_prob):
             cfp += prediction
 
     beta_squared = beta * beta
-    c_precision = ctp / (ctp + cfp)
+    if ctp + cfp == 0:
+        c_precision = 0
+    else:
+        c_precision = ctp / (ctp + cfp)
+    
     c_recall = 0 if y_true_count==0 else ctp / y_true_count
     if (c_precision > 0 and c_recall > 0):
         result = (1 + beta_squared) * (c_precision * c_recall) / (beta_squared * c_precision + c_recall)
