@@ -26,6 +26,7 @@ class BCDDatasetNPZ:
                 in_chans=1,
                 extension="npz",
                 transform=None,
+                pos_transform=None,
                 breast_crop=True,
                 return_breast_id=False,
                 return_path=False):
@@ -35,9 +36,13 @@ class BCDDatasetNPZ:
         self.intepret = df["interpret"].values
         self.window_center = df["window_center"].values
         self.window_width = df["window_width"].values
-        self.target = df[target].values
+        self.target = df["target"].values
         self.test = test
         self.transform = transform
+        if pos_transform is None:
+            self.pos_transform = transform
+        else:
+            self.pos_transform = pos_transform
         self.breast_id = df["breast_id"].values
         
         self.aux_cols = [target]+aux_cols
@@ -58,7 +63,6 @@ class BCDDatasetNPZ:
             image = image.max()-image
         if self.breast_crop:
             image = crop_breast(image)
-        #image = npz_preprocessing(image, self.intepret[index], (self.window_center[index], self.window_width[index]))
 
         image = npz_preprocessing(image)
         if self.in_chans == 3:
@@ -71,7 +75,10 @@ class BCDDatasetNPZ:
             image = image3
 
         if self.transform is not None:
-            image = self.transform(image)
+            if self.target[index] == 1:
+                image = self.pos_transform(image)
+            else:
+                image = self.transform(image)
 
         if self.test:
             if self.return_path:

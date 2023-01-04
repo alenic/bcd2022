@@ -41,7 +41,7 @@ if __name__ == "__main__":
         
         # Undersampling
         if cfg.max_negative_examples is not None:
-            if cfg.preprocess_softlabel == False:
+            if cfg.preprocess_softlabel == True:
                 print("preprocess_softlabel is True,max_negative_examples can't be applied! ")
             else:
                 df_train_neg = df_train[df_train[cfg.target] == 0].sample(cfg.max_negative_examples)
@@ -113,7 +113,8 @@ if __name__ == "__main__":
                                    target=cfg.target,
                                    in_chans=cfg.in_chans,
                                    breast_crop=cfg.breast_crop,
-                                   transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)))
+                                   transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.severity, cfg.mean, cfg.std)),
+                                   pos_transform=transform_albumentations(get_train_tr(cfg.input_size, cfg.pos_severity, cfg.mean, cfg.std)))
                                    
         val_dataset = BCDDatasetNPZ(root_images,
                                  df_val,

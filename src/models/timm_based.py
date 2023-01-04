@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import timm
-from ..surgery import *
+#from ..surgery import *
 
 class TimmBackbone(nn.Module):
     # You must provide self.n_features
@@ -46,8 +46,8 @@ class TimmBackbone(nn.Module):
         
         return x
 
-
 class TimmBackboneLowFeatures(nn.Module):
+    
     # You must provide self.n_features
     def __init__(self, model_name: str,
                        in_chans: int = 1,
@@ -144,7 +144,7 @@ class MultiHead(nn.Module):
 
 
 if __name__ == "__main__":
-    backbone = TimmBackbone("resnet50", in_chans=1, n_hidden=None)
+    backbone = TimmSpatial("resnet50", in_chans=1)
     m = MultiHead(backbone, heads_num=[1], inference=False)
     m.eval()
     with torch.no_grad():

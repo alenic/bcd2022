@@ -179,9 +179,13 @@ class CVMHTrainer:
     def train_epoch(self, epoch, data_loader, model, optimizer, scheduler, criterion):
         model.train()
         y_train_true = []
+        y_train_pos = []
+        y_train_neg = []
         y_train_prob = []
         n_iter = len(data_loader)
         pbar = tqdm(total=10)
+        out_pos = []
+        out_neg = []
         for iter, (image, labels) in enumerate(data_loader):
 
             y_train_true += list(labels[:,0].cpu().numpy())
@@ -199,6 +203,11 @@ class CVMHTrainer:
             
             y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
             loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))
+            
+            out_pos += [outputs[0][labels[:,0].squeeze() >= 0.5].cpu().squeeze(-1).type(torch.float32)]
+            y_train_pos += [labels[labels[:,0].squeeze() >= 0.5, 0].cpu().type(torch.float32)]
+            out_neg += [outputs[0][labels[:,0].squeeze() < 0.5].cpu().squeeze(-1).type(torch.float32)]
+            y_train_neg += [labels[labels[:,0].squeeze() < 0.5, 0].cpu().type(torch.float32)]
 
             for i in range(1, len(criterion)):
                 if self.model.heads_num[i] == 1:
@@ -224,11 +233,8 @@ class CVMHTrainer:
         y_train_true = np.array(y_train_true)
         y_train_prob = np.array(y_train_prob)
 
-        prob_pos = y_train_prob[y_train_true==1]
-        prob_neg = y_train_prob[y_train_true==0]
-        loss_pos = -np.mean(np.log(prob_pos))
-        loss_neg = -np.mean(np.log(1-prob_neg))
-        
+        loss_pos = criterion[0](torch.cat(out_pos,0).cuda(), torch.cat(y_train_pos,0).cuda())
+        loss_neg = criterion[0](torch.cat(out_neg,0).cuda(), torch.cat(y_train_neg,0).cuda())
 
         self.summary.add_pr_curve("Train/pr", y_train_true, y_train_prob, epoch)
         self.summary.add_scalar("Train/loss_pos", loss_pos, epoch)

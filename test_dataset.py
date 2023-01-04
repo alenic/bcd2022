@@ -8,7 +8,7 @@ import time
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
 
 df = pd.read_csv("data/train_5fold_aug.csv")
-
+df = df_preprocess(df)
 option = input("Profile (p/P) or Visualize (v/V): ")
 
 
@@ -18,8 +18,8 @@ tr_val = transform_albumentations(get_val_tr(input_size=(300, 512)))
 for dataset_type in [(BCDDatasetNPZ, "alenic_train_images_1024"), (BCDDataset, "images_1024")]:
     root_images = os.path.join(root, dataset_type[1])
 
-    dataset_train = dataset_type[0](root_images, df, transform=tr, in_chans=3)
-    dataset_val = dataset_type[0](root_images, df, transform=tr_val, in_chans=3)
+    dataset_train = dataset_type[0](root_images, df, transform=tr, in_chans=1)
+    dataset_val = dataset_type[0](root_images, df, transform=tr_val, in_chans=1)
     
     if option.lower() == "v":
         
