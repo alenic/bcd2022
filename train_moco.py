@@ -21,7 +21,7 @@ import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-
+from functools import partial
 # import torchvision.models as models
 from src import *
 import moco.loader
@@ -29,18 +29,17 @@ import moco.builder
 
 """
 Single GPU:
-python3 main_moco.py \
---lr 0.005 \
---batch-size 32 \
---epochs 120 \
+python3 train_moco.py \
+--cfg config/moco.yaml \
+--lr 0.002 \
+--batch-size 128 \
+--epochs 15 \
 --dist-url 'tcp://localhost:10001' \
 --multiprocessing-distributed true \
 --world-size 1 \
 --rank 0 \
 --moco-k 10240 \
---schedule [60,90] \
---pre-h-flip true \
---pre-v-flip true
+--schedule [10,14]
 
 With 8 GPUs: --lr 0.03 --batch_size 256
 
@@ -52,7 +51,7 @@ For MOCO v2 add
 """
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "cropped_256_fold0")
+root_images = os.path.join(root, "patch_256_fold_0")
 
 
 TORCHUB_HOME = "torchub_home"
@@ -61,6 +60,22 @@ if "SM_CHANNEL_DATA" not in os.environ:
     os.environ["SM_CHANNEL_DATA"] = "."
 
 parser = argparse.ArgumentParser(description="PyTorch ImageNet Training")
+
+parser.add_argument(
+    "--cfg",
+    default="config/moco.yaml",
+    type=str,
+    metavar="N",
+    help="nconfig file",
+)
+
+parser.add_argument(
+    "--checkpoints-dir",
+    default="output_moco",
+    type=str,
+    metavar="N",
+    help="output dir",
+)
 
 parser.add_argument(
     "--epochs",
@@ -129,6 +144,7 @@ parser.add_argument(
     "--seed", default=123, type=int, help="seed for initializing training."
 )
 parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
+
 parser.add_argument(
     "--multiprocessing-distributed",
     type=lambda x: True if x.strip().lower() == "true" else False,
@@ -180,34 +196,10 @@ parser.add_argument(
     metavar="N",
     help="print frequency (default: 10)",
 )
-parser.add_argument(
-    "--pre-h-flip",
-    type=lambda x: True if x.strip().lower() == "true" else False,
-    default=False,
-    help="if true, flip horizzontally random both query and key",
-)
-parser.add_argument(
-    "--pre-v-flip",
-    type=lambda x: True if x.strip().lower() == "true" else False,
-    default=False,
-    help="if true, flip vertically random both query and key",
-)
-
 
 def main():
     args = parser.parse_args()
-
-    if args.seed is not None:
-        random.seed(args.seed)
-        torch.manual_seed(args.seed)
-        cudnn.deterministic = True
-        warnings.warn(
-            "You have chosen to seed training. "
-            "This will turn on the CUDNN deterministic setting, "
-            "which can slow down your training considerably! "
-            "You may see unexpected behavior when restarting "
-            "from checkpoints."
-        )
+    seed_all(args.seed)
 
     if args.gpu is not None:
         warnings.warn(
@@ -221,6 +213,7 @@ def main():
     args.distributed = args.world_size > 1 or args.multiprocessing_distributed
 
     ngpus_per_node = torch.cuda.device_count()
+
     if args.multiprocessing_distributed:
         # Since we have ngpus_per_node processes per node, the total world_size
         # needs to be adjusted accordingly
@@ -234,6 +227,8 @@ def main():
 
 
 def main_worker(gpu, ngpus_per_node, args):
+    cfg = get_config(args.cfg)
+
     args.gpu = gpu
     # suppress printing if not master
     if args.multiprocessing_distributed and args.gpu != 0:
@@ -264,13 +259,8 @@ def main_worker(gpu, ngpus_per_node, args):
         f"=> Model building {cfg.model_type}, {cfg.model_name}"
     )
 
-    backbone_model = factory_model(cfg.model_type,
-                                    cfg.model_name,
-                                    in_chans=cfg.in_chans,
-                                    n_hidden=cfg.n_hidden,
-                                    drop_rate_back=cfg.drop_rate_back,
-                                    pretrained=cfg.pretrained
-                                    )
+    backbone_model = timm.create_model(cfg.model_name, num_classes=args.moco_dim, in_chans=cfg.in_chans, pretrained=True)
+
 
     model = moco.builder.MoCo(
         backbone_model,
@@ -323,15 +313,14 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay,
     )
 
-    transform = get_train_tr(cfg.input_size, severity=2, mean=cfg.mean, std=cfg.std)
+    transform = transform_albumentations( get_train_tr(cfg.input_size, severity=cfg.severity, mean=cfg.mean, std=cfg.std) )
 
     train_dataset = datasets.ImageFolder(
         root_images,
         moco.loader.TwoCropsTransform(
             base_transform=transform,
-            pre_h_flip=args.pre_h_flip,
-            pre_v_flip=args.pre_v_flip,
         ),
+        loader=cv2_loader
     )
 
     if args.distributed:
@@ -359,16 +348,15 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if not args.multiprocessing_distributed or (
             args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
-        ):
+        ):  
+            out_dir = os.path.join(args.checkpoints_dir, f"{cfg.model_name}")
+            os.makedirs(out_dir, exist_ok=True)
             if (epoch + 1) % 1 == 0:
                 filename = "moco_{:04d}.pth".format(epoch)
                 print("Saving ", filename)
-                new_state_dict = src.rename_namespace_dict_keys(
-                    backbone_model.state_dict(), "backbone_model"
-                )
                 torch.save(
-                    new_state_dict,
-                    os.path.join(args.checkpoints_dir, filename),
+                    backbone_model.state_dict(),
+                    os.path.join(out_dir, filename),
                 )
 
 
@@ -404,7 +392,6 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             images[0] = images[0].cuda(args.gpu, non_blocking=True)
             images[1] = images[1].cuda(args.gpu, non_blocking=True)
         """
-
         # compute output
         output, target = model(im_q=images[0], im_k=images[1])
 
@@ -484,7 +471,7 @@ def adjust_learning_rate(optimizer, epoch, args):
         param_group["lr"] = lr
 
 
-def accuracy(output, target, topk=(1,)):
+def accuracy(output, target, topk=(5,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
     with torch.no_grad():
         maxk = max(topk)
@@ -496,7 +483,7 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].flatten().float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 

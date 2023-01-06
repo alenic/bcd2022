@@ -68,8 +68,14 @@ class CVMHEval:
     def eval_metrics(self, y_true: dict, y_out: dict):
         metrics = {m: {} for m in ["f1score", "precision", "recall", "pr_thr", "f1score_thr", "pf1_mean", "pf1_max", "tpf1_mean", "tpf1_mean_thr", "tpf1_max", "tpf1_max_thr"]}
 
+        for c in y_out:
+            if np.isnan(y_out[c]).sum() > 0:
+                print(c, f"y_out has {np.isnan(y_out[c]).sum()} NaNs, put at 0")
+                y_out[c][np.isnan(y_out[c])] = 0
+
         # Eval target
         c = self.cfg.target
+        
         y_prob_target = sigmoid(y_out[c].flatten())
         metrics["f1score"][c], best_thr = optimize_metric(f1, y_true[c], y_prob_target)
         metrics["precision"][c], metrics["recall"][c], metrics["pr_thr"][c] = skm.precision_recall_curve(y_true[c], y_prob_target)

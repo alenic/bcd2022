@@ -14,9 +14,9 @@ def df_preprocess(df: pd.DataFrame, softlabel=False):
     #new_df.loc[new_df["BIRADS"]==0, "BIRADS"] = 1 # required a follow up
     #new_df.loc[new_df["BIRADS"]>0, "BIRADS"] = 0 # normal breasts
     
-    new_df.loc[(new_df["cancer"]==1), "cancer"] = 0.85
-    new_df.loc[(new_df["difficult_negative_case"]==1), "cancer"] = 0.45
-    new_df.loc[(new_df["invasive"]==1), "cancer"] = 1.0
+    #new_df.loc[(new_df["cancer"]==1), "cancer"] = 0.85
+    #new_df.loc[(new_df["difficult_negative_case"]==1), "cancer"] = 0.45
+    #new_df.loc[(new_df["invasive"]==1), "cancer"] = 1.0
 
 
     #dfg = new_df.groupby(["patient_id", "laterality"])["cancer"].count().reset_index()

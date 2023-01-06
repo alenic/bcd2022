@@ -8,8 +8,6 @@ class TwoCropsTransform:
     """Take two random crops of one image as the query and key."""
 
     def __init__(self, base_transform, pre_h_flip=False, pre_v_flip=False):
-        self.pre_h_flip = pre_h_flip
-        self.pre_v_flip = pre_v_flip
         self.base_transform = base_transform
 
     def __call__(self, x):

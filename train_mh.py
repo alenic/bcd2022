@@ -88,18 +88,20 @@ if __name__ == "__main__":
         if cfg.model_ckpt is not None:
             state_dict = torch.load(cfg.model_ckpt, map_location="cpu")
 
-            print("ckpt state dict")
             for i,k in enumerate(state_dict.keys()):
-                print(k)
+                print("ckpt state dict", i, k)
                 if i>=5: break
             
-            print("model state dict")
             model_sd = backbone.state_dict()
             for i,k in enumerate(model_sd.keys()):
-                print(k)
+                print("model state dict", i, k)
                 if i>=5: break
 
-            print(load_state_dict_improved(state_dict, backbone, replace_str="backbone."))
+            if cfg.model_ckpt.startswith("output_moco"):
+                print("LOADING MOCO!")
+                print(load_state_dict_improved(state_dict, backbone, prepend="back."))
+            else:
+                print(load_state_dict_improved(state_dict, backbone, replace_str=("backbone.","")))
         
         if cfg.freeze:
             for p in backbone.parameters():

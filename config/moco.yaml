@@ -1,16 +1,17 @@
 project_name: multihead
 device: cuda:0
-random_state: 2022
-n_epochs: 8
-batch_size: 32
+random_state: 42
+n_epochs: 50
+batch_size: 48
 test_batch_size: 64
-num_workers: 4
+num_workers: 8
 
 # =========================== Dataset ===================
 folds: [0]
 imbalance_sampler: false
 max_negative_examples: null
 perc_sample: [1.0, 1.0]
+
 breast_crop: true
 preprocess_softlabel: false
 # =========================== Model =====================
@@ -22,8 +23,8 @@ freeze: false
 in_chans: 1
 n_hidden: null
 
-input_size: [128, 256]
-test_input_size: [128, 256]
+input_size: [64, 64]
+test_input_size: [64, 64]
 model_ckpt: null
 
 drop_rate_back: 0.0
@@ -44,23 +45,17 @@ loss_target:
 # loss_type : focal, bce, ce
 # balance (true, false): apply automatic unbalancing reweighting: weight_i=total_num/num(class_i)
 aux_cols: [
-          #  [view, ce, false],
-          #  [site_id, bce, true],
-          #  [laterality, bce, false],
-          #  [machine_id, ce, false],
-          #  [implant, bce, true],
-          #  [biopsy, bce, true],
-          #  [invasive, bce, true],
-          #  [BIRADS, ce, false],
-          #  [density, ce, false],
-          #  [difficult_negative_case, bce, true],
-          #  [age, ce, false]
-           ]
+  [density, ce, false],
+  # [invasive, bce, true],
+  [BIRADS, ce, false],
+  [age, ce, false],
+  # [biopsy, bce, true]
+  ]
 loss_aux:
   # automatic weighting is performed using unbalance_perc*weight_i
   unbalance_perc: 0.5
   # loss = target_loss + sum_i {loss_aux.weights[i]*loss_aux[i]}
-  weights: 1
+  weights: 50
 
 # Optimizer
 # sgd, adam, adamw
@@ -68,8 +63,8 @@ optimizer: adamw
 # sgd
 opt_sgd_momentum: 0.9
 
-lr: 1.0e-3
-weight_decay: 1.0e-4
+lr: 2.0e-4
+weight_decay: 1.0e-6
 
 # const, cosineannealing, step
 lr_scheduler: cosineannealing
@@ -78,12 +73,12 @@ lr_scheduler: cosineannealing
 lr_cosineannealing_eta_mul: 0.01   # from lr to eta_mul*lr
 
 # lr_step
-lr_step_milestones: [10, 20]
+lr_step_milestones: [15, 24]
 lr_step_gamma: 0.1
 
 # ===================== Augmentations ===================
 severity: 3
-pos_severity: 3
+pos_severity: 4
 mean: 0.5
 std: 0.5
 tta: false

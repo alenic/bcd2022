@@ -3,6 +3,7 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 import torchvision.transforms as T
 import cv2
+from functools import partial
 
 class CustomBrigthnessContrast(A.ImageOnlyTransform):
     def __init__(self,
@@ -26,8 +27,11 @@ class CustomBrigthnessContrast(A.ImageOnlyTransform):
         img = np.clip(img, self.min_value, self.max_value)
         return img
 
+def transform_albumentations_pickle(tr, x):
+    return tr(image=x)["image"]
+
 def transform_albumentations(tr):
-    return lambda x: tr(image=x)["image"]
+    return partial(transform_albumentations_pickle, tr)
 
 def get_train_tr(input_size, severity=2, mean=0, std=1):
     tr = []

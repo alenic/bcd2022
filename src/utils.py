@@ -11,6 +11,7 @@ import yaml
 import matplotlib.pyplot as plt
 from easydict import EasyDict
 import torchvision.transforms as T
+import cv2
 
 def seed_all(random_state):
     random.seed(random_state)
@@ -62,12 +63,17 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str ='.') -> Muta
     return dict(items)
 
 
-def load_state_dict_improved(state_dict, model: nn.Module, replace_str=""):
+def load_state_dict_improved(state_dict, model: nn.Module, replace_str=None, prepend=None):
     model_state_dict = model.state_dict()
     ckpt_state_dict = {}
 
     for key in state_dict:
-        ckpt_state_dict[key.replace(replace_str, "")] = state_dict[key]
+        keyr = key
+        if replace_str is not None:
+            keyr = keyr.replace(replace_str[0], replace_str[1])
+        if prepend is not None:
+            keyr = prepend + keyr
+        ckpt_state_dict[keyr] = state_dict[key]
     
 
     n_load = 0
@@ -137,7 +143,11 @@ def show_batch(image_tensor, label=None, mean=None, std=None):
     plt.show()
 
 
-
+def cv2_loader(path, in_chans=1):
+    if in_chans == 1:
+        return cv2.imread(path, 0)
+    else:
+        return cv2.cvtColor(cv2.imread(path, 0), cv2.COLOR_GRAY2RGB)
 
 def sigmoid(x):
     def _positive_sigmoid(x):
