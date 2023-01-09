@@ -67,6 +67,36 @@ def get_val_tr(input_size, mean=0, std=1):
                       ToTensorV2()
                       ])
 
+
+def npz_preprocessing3(image_in, low_q=(0.1,0.5), hig_h=(0.95,1)):
+    image = image_in.copy()
+    image_high = np.empty_like(image)
+    image_low = np.empty_like(image)
+
+    imin = image.min()
+    imax = image.max()
+
+    data = image.flatten()
+
+    q1 = np.quantile(data, q=low_q[0])
+    q2 = np.quantile(data, q=low_q[1])
+    image_low[image<q1]=q1
+    image_low[image>q2]=q2
+
+    q1 = np.quantile(data, q=hig_h[0])
+    q2 = np.quantile(data, q=hig_h[1])
+    image_high[image<q1]=q1
+    image_high[image>q2]=q2
+
+    image3 = np.zeros(list(image.shape)+[3], dtype=image.dtype)
+    image3[:, :, 0] = image_low
+    image3[:, :, 1] = image
+    image3[:, :, 2] = image_high
+    image3 = (image3-imin).astype(np.float32)/(imax-imin)
+
+    return (image3*255).astype(np.uint8)
+
+
 def npz_preprocessing(image_in, quant=None, window=None):
     image = image_in.copy()
 

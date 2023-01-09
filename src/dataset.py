@@ -64,15 +64,20 @@ class BCDDatasetNPZ:
         if self.breast_crop:
             image = crop_breast(image)
 
-        image = npz_preprocessing(image)
+        if self.in_chans == 1:
+            image = npz_preprocessing(image)
+        elif self.in_chans == 3:
+            image = npz_preprocessing3(image)
+        '''
         if self.in_chans == 3:
-            image_medium =  npz_preprocessing(image, quant=(0.1, 0.9))
-            image_high =  npz_preprocessing(image, quant=(0.5, 1))
+            image_medium =  npz_preprocessing(image, quant=(0.1, 0.5))
+            image_high =  npz_preprocessing(image, quant=(0.98, 1))
             image3 = np.zeros(list(image.shape)+[3], dtype=np.uint8)
             image3[:, :, 0] = image
             image3[:, :, 1] = image_medium
             image3[:, :, 2] = image_high
             image = image3
+        '''
 
         if self.transform is not None:
             if self.target[index] == 1:
