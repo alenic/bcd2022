@@ -32,14 +32,14 @@ Single GPU:
 python3 train_moco.py \
 --cfg config/moco.yaml \
 --lr 0.002 \
---batch-size 128 \
---epochs 15 \
+--batch-size 256 \
+--epochs 40 \
 --dist-url 'tcp://localhost:10001' \
 --multiprocessing-distributed true \
 --world-size 1 \
 --rank 0 \
 --moco-k 10240 \
---schedule [10,14]
+--schedule [25,35]
 
 With 8 GPUs: --lr 0.03 --batch_size 256
 
@@ -51,7 +51,7 @@ For MOCO v2 add
 """
 
 root = os.path.join(os.environ["DATASET_ROOT"], "bcd2022")
-root_images = os.path.join(root, "patch_256_fold_0")
+root_images = os.path.join(root, "patch_128_fold_0")
 
 
 TORCHUB_HOME = "torchub_home"
@@ -197,6 +197,20 @@ parser.add_argument(
     help="print frequency (default: 10)",
 )
 
+
+
+def train_tr(input_size, severity=2, mean=0, std=1):
+    tr = []
+
+    tr += [A.ShiftScaleRotate(p=1, rotate_limit=10, scale_limit=(-0.1, 0.1), border_mode=cv2.BORDER_CONSTANT)]
+    tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
+    tr += [CustomBrigthnessContrast(brightness_limit=0.01, contrast_limit=0.01, p=1, min_value=0, max_value=255)]
+    #tr += [A.HorizontalFlip(p=0.5)]
+    tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
+
+    return A.Compose(tr)
+
+
 def main():
     args = parser.parse_args()
     seed_all(args.seed)
@@ -313,7 +327,7 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay,
     )
 
-    transform = transform_albumentations( get_train_tr(cfg.input_size, severity=cfg.severity, mean=cfg.mean, std=cfg.std) )
+    transform = transform_albumentations( train_tr(cfg.input_size, severity=cfg.severity, mean=cfg.mean, std=cfg.std) )
 
     train_dataset = datasets.ImageFolder(
         root_images,
@@ -358,6 +372,9 @@ def main_worker(gpu, ngpus_per_node, args):
                     backbone_model.state_dict(),
                     os.path.join(out_dir, filename),
                 )
+                filename = os.path.join(out_dir, "moco_{:04d}.pth".format(epoch-1))
+                if os.path.exists(filename):
+                    os.remove(filename)
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
