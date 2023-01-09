@@ -57,9 +57,9 @@ class CVMHGroupedEval:
         pbar = tqdm(total=10)
         for iter, (image, label, breast_id) in enumerate(self.val_data_loader):
             image = image.to(self.device)
-            with torch.cuda.amp.autocast():
-                with torch.no_grad():
-                    output = self.model(image)
+            #with torch.cuda.amp.autocast():
+            with torch.no_grad():
+                output = self.model(image)
             if tta:
                 output_tta = self.model(image.flip(-1))
 

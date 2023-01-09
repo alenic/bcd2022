@@ -37,15 +37,16 @@ def get_train_tr(input_size, severity=2, mean=0, std=1):
     tr = []
 
     rot = [0, 2, 4, 7, 10, 12, 15][severity]
+    scale = [0, 0.01, 0.05, 0.1, 0.15, 0.2, 0.25][severity]
     if rot > 0:
-        tr += [A.ShiftScaleRotate(p=0.5, rotate_limit=rot, scale_limit=(-0.1, 0.2), border_mode=cv2.BORDER_CONSTANT)]
+        tr += [A.ShiftScaleRotate(p=1, rotate_limit=0, scale_limit=(0, scale))]
         #tr += [A.ElasticTransform(1, 10, rot, border_mode=cv2.BORDER_CONSTANT, p=0.5)]
 
     tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
 
     bl = [0.0, 0.005, 0.01, 0.02, 0.04, 0.08, 0.12][severity]
     cl = [0.0, 0.005, 0.01, 0.02, 0.04, 0.08, 0.12][severity]
-    tr += [CustomBrigthnessContrast(brightness_limit=bl, contrast_limit=cl, p=0.5, min_value=0, max_value=255)]
+    tr += [CustomBrigthnessContrast(brightness_limit=bl, contrast_limit=cl, p=1, min_value=0, max_value=255)]
 
     tr += [A.HorizontalFlip(p=0.5)]
 
@@ -95,12 +96,13 @@ def npz_preprocessing(image_in, quant=None, window=None):
 def crop_breast(img: np.array):
     im_mean = img.mean()*0.5
     img_mask= (img > im_mean).astype(np.uint8)
+    img_mask = cv2.erode(img_mask, (8,8))
     contours, hierarchy = cv2.findContours(img_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     if len(contours) != 0:
         max_contour = max(contours, key=cv2.contourArea)
         x,y,w,h = cv2.boundingRect(max_contour)
-        img = img[:, x:x+w]
+        img = img[y:y+h, x:x+w]
 
     return img
 
@@ -118,7 +120,7 @@ if __name__ == "__main__":
         img_crop = crop_breast(img)
         img = npz_preprocessing(img)
         img_crop = npz_preprocessing(img_crop)
-        tr = transform_albumentations(get_train_tr(severity=3, input_size=(256, 512)))
+        tr = transform_albumentations(get_train_tr(severity=6, input_size=(256, 512)))
         img_crop_t = tr(img_crop)
         print(img_crop_t.min(), img_crop_t.max())
         img_crop = T.ToPILImage()(img_crop_t)

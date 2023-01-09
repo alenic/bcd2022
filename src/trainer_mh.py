@@ -198,8 +198,8 @@ class CVMHTrainer:
             image = image.to(self.device)
             labels = labels.to(self.device)
         
-            with torch.cuda.amp.autocast():
-                outputs = model(image)
+            #with torch.cuda.amp.autocast():
+            outputs = model(image)
             
             y_train_prob += list(torch.sigmoid(outputs[0]).detach().squeeze(-1).cpu().numpy().flatten())
             loss = criterion[0](outputs[0].squeeze(-1), labels[:,0].type(torch.float32))

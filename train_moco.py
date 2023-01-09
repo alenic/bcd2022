@@ -31,15 +31,14 @@ import moco.builder
 Single GPU:
 python3 train_moco.py \
 --cfg config/moco.yaml \
---lr 0.002 \
+--lr 0.01 \
 --batch-size 256 \
---epochs 40 \
+--epochs 10 \
 --dist-url 'tcp://localhost:10001' \
 --multiprocessing-distributed true \
 --world-size 1 \
 --rank 0 \
---moco-k 10240 \
---schedule [25,35]
+--moco-k 10240
 
 With 8 GPUs: --lr 0.03 --batch_size 256
 
@@ -199,13 +198,16 @@ parser.add_argument(
 
 
 
-def train_tr(input_size, severity=2, mean=0, std=1):
+def train_tr(input_size, mean=0, std=1):
     tr = []
 
-    tr += [A.ShiftScaleRotate(p=1, rotate_limit=10, scale_limit=(-0.1, 0.1), border_mode=cv2.BORDER_CONSTANT)]
+    tr += [A.ShiftScaleRotate(p=0.5, rotate_limit=10, scale_limit=(-0.1, 0.1), border_mode=cv2.BORDER_CONSTANT)]
     tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
-    tr += [CustomBrigthnessContrast(brightness_limit=0.01, contrast_limit=0.01, p=1, min_value=0, max_value=255)]
-    #tr += [A.HorizontalFlip(p=0.5)]
+    tr += [CustomBrigthnessContrast(brightness_limit=0.01, contrast_limit=0.01, p=0.5, min_value=0, max_value=255)]
+    tr += [A.HorizontalFlip(p=0.5)]
+    tr += [A.RandomRotate90(p=0.5)]
+    tr += [A.VerticalFlip(p=0.5)]
+    tr += [A.Sharpen(p=0.5)]
     tr += [A.Normalize(mean=mean, std=std), ToTensorV2()]
 
     return A.Compose(tr)
@@ -327,7 +329,7 @@ def main_worker(gpu, ngpus_per_node, args):
         weight_decay=args.weight_decay,
     )
 
-    transform = transform_albumentations( train_tr(cfg.input_size, severity=cfg.severity, mean=cfg.mean, std=cfg.std) )
+    transform = transform_albumentations( train_tr(cfg.input_size, mean=cfg.mean, std=cfg.std) )
 
     train_dataset = datasets.ImageFolder(
         root_images,
@@ -352,13 +354,18 @@ def main_worker(gpu, ngpus_per_node, args):
         drop_last=True,
     )
 
+    #lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.schedule, last_epoch=-1)
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader)*args.epochs, eta_min=0.01)
+
     for epoch in range(args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
-        adjust_learning_rate(optimizer, epoch, args)
+        #adjust_learning_rate(optimizer, epoch, args)
 
         # train for one epoch
-        train(train_loader, model, criterion, optimizer, epoch, args)
+        train(train_loader, model, criterion, optimizer, lr_scheduler, epoch, args)
+
+        
 
         if not args.multiprocessing_distributed or (
             args.multiprocessing_distributed and args.rank % ngpus_per_node == 0
@@ -377,7 +384,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     os.remove(filename)
 
 
-def train(train_loader, model, criterion, optimizer, epoch, args):
+def train(train_loader, model, criterion, optimizer, lr_scheduler, epoch, args):
     batch_time = AverageMeter("Time", ":6.3f")
     data_time = AverageMeter("Data", ":6.3f")
     losses = AverageMeter("Loss", ":.4e")
@@ -410,6 +417,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             images[1] = images[1].cuda(args.gpu, non_blocking=True)
         """
         # compute output
+        #with torch.cuda.amp.autocast():
         output, target = model(im_q=images[0], im_k=images[1])
 
         loss = criterion(output, target)
@@ -424,6 +432,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
+
+
         optimizer.step()
 
         # measure elapsed time
@@ -432,6 +442,8 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
         if i % args.print_freq == 0:
             progress.display(i)
+        
+        lr_scheduler.step()
 
 
 class AverageMeter(object):
