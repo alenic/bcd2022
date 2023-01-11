@@ -27,6 +27,45 @@ class CustomBrigthnessContrast(A.ImageOnlyTransform):
         img = np.clip(img, self.min_value, self.max_value)
         return img
 
+class PutCalcification(A.ImageOnlyTransform):
+    def __init__(self,
+                 always_apply: bool = False,
+                 p: float = 0.5,
+                 n=1,
+                 min_value=0,
+                 max_value=255):
+        super(PutCalcification, self).__init__(always_apply, p)
+        self.min_value = min_value
+        self.max_value = max_value
+        self.n = n
+        
+    def apply(self, img, **params):
+        imax = img.max()
+        imin = img.min()
+
+        h,w = img.shape[:2]
+
+        n = int(self.n*np.random.rand()) + 1
+        for i in range(n):
+            r = int((np.random.rand()*0.08 + 0.01)*max(h,w))
+            pos_x = int(np.random.rand()*(w-2*r) + r)
+            pos_y = int(np.random.rand()*(h-2*r) + r)
+            axes_x = int((np.random.rand()*0.9+0.1)*r)
+            axes_y = int((np.random.rand()*0.9+0.1)*r)
+            angle = int(np.random.rand()*180)
+            color = imin + (imax-imin)*(0.8 + np.random.rand()*0.2)
+            cv2.ellipse(img,
+                        (pos_x, pos_y),
+                        (axes_x, axes_y),
+                        angle=angle,
+                        startAngle=0,
+                        endAngle=360, 
+                        color=color,
+                        thickness=-1)
+
+
+        return img
+
 def transform_albumentations_pickle(tr, x):
     return tr(image=x)["image"]
 
@@ -144,6 +183,21 @@ if __name__ == "__main__":
     root_images = os.path.join(os.environ["DATASET_ROOT"], "bcd2022", "alenic_train_images_1024")
     files = os.listdir(root_images)
     
+    tr_calc = [PutCalcification(p=1, n=100)]
+    tr_calc = A.Compose(tr_calc)
+
+    for f in files:
+        image_file = os.path.join(root_images, f)
+        img = np.load(image_file)["data"]
+        img = npz_preprocessing(img)
+        img_t = tr_calc(image=img)["image"]
+
+        fig, ax = plt.subplots(1, 1, figsize=(10,10))
+        ax.imshow(img_t, vmin=img.min(), vmax=img.max())
+        plt.show()
+
+    exit()
+
     for f in files:
         image_file = os.path.join(root_images, f)
         img = np.load(image_file)["data"]

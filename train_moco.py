@@ -197,10 +197,8 @@ parser.add_argument(
 )
 
 
-
 def train_tr(input_size, mean=0, std=1):
-    tr = []
-
+    tr =  [PutCalcification(p=0.6, n=4)]
     tr += [A.ShiftScaleRotate(p=0.5, rotate_limit=10, scale_limit=(-0.1, 0.1), border_mode=cv2.BORDER_CONSTANT)]
     tr += [A.Resize(width=input_size[0], height=input_size[1], interpolation=cv2.INTER_LINEAR)]
     tr += [CustomBrigthnessContrast(brightness_limit=0.01, contrast_limit=0.01, p=0.5, min_value=0, max_value=255)]
